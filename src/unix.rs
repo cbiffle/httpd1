@@ -19,7 +19,9 @@ pub fn stderr() -> fs::File { unsafe { fs::File::from_raw_fd(2) } }
 /// Also corrects the range of the result, excluding negative values.
 ///
 /// Implementation derived from code in std::sys::unix, which is unfortunately
-/// private.
+/// private.  We'd really like to use Zero/One but they're unstable; unlike
+/// libc, which seems pretty stable for being unstable, they may be a source of
+/// churn.
 fn cvt<T: Default + PartialOrd>(t: T) -> io::Result<T> {
   if t < T::default() {
     Err(io::Error::last_os_error())
@@ -65,6 +67,7 @@ pub struct OpenFile {
   pub length: u64,
 }
 
+/// Bring in some features not exposed in Rust's libc crate.
 mod ffi {
   extern {
     pub fn chroot(path: *const ::libc::c_char) -> ::libc::c_int;
