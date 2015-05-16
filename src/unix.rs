@@ -100,4 +100,18 @@ pub fn setgid(gid: libc::gid_t) -> io::Result<()> {
   cvt(unsafe { libc::setgid(gid) }).map(|_| ())
 }
 
+/// Wraps POSIX pipe(2).  On success, returns a pair of Files that own the
+/// pipe's file descriptors.
+pub fn pipe() -> io::Result<Pipe> {
+  let mut fds = [0; 2];
+  cvt(unsafe { libc::pipe(fds.as_mut_ptr()) })
+    .map(|_| Pipe {
+      input: unsafe { fs::File::from_raw_fd(fds[0]) },
+      output: unsafe { fs::File::from_raw_fd(fds[1]) },
+    })
+}
 
+pub struct Pipe {
+  pub input: fs::File,
+  pub output: fs::File,
+}
