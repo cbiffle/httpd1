@@ -9,11 +9,17 @@ use std::mem;
 
 use std::io::BufRead;
 use std::io::Write;
+use std::ascii::AsciiExt;
+use std::iter::FromIterator;
 
 pub mod unix;
 
+#[derive(Debug)]
 pub enum HttpError {
   ConnectionClosed,
+  BadMethod,
+  BadRequest,
+  BadProtocol,
   IoError(io::Error),
 }
 
@@ -88,12 +94,11 @@ fn test_connection_readline() {
   // Test what happens when the connection is dropped.
   to_con.write_all(b"truncated").unwrap();
   mem::drop(to_con);  // close our side of this pipe
-  if let Some(e) = c.readline().err() {
-    assert_eq!(io::ErrorKind::BrokenPipe, e.kind());
-  } else {
-    panic!("Connection should signal an error if input is closed during
-            readline()");
-  }
+  match c.readline().err() {
+    Some(HttpError::ConnectionClosed) => (),
+    Some(_) => panic!("Unexpected error from readline() at stream end"),
+    _ => panic!("readline() must fail at stream end"),
+  };
 }
 
 pub fn serve() -> Result<()> {
@@ -104,6 +109,64 @@ pub fn serve() -> Result<()> {
     // Tolerate and skip blank lines between requests.
     if start_line.is_empty() { continue }
 
-    println!("Got {}", start_line.len());
+    let (method, mut host, mut path, protocol) =
+        try!(parse_start_line(start_line));
+
+    println!("R: {:?} {:?} {:?} {:?}", method, host, path, protocol);
   }
+}
+
+#[derive(Debug)]
+enum Method {
+  Get,
+  Head,
+}
+
+#[derive(Debug)]
+enum Protocol {
+  Http10,
+  Http11,
+}
+
+fn indexof<T: PartialEq>(slice: &[T], item: T) -> usize {
+  for i in 0..slice.len() {
+    if slice[i] == item { return i }
+  }
+  slice.len()
+}
+
+fn parse_start_line(line: Vec<u8>)
+    -> Result<(Method, Option<Vec<u8>>, Vec<u8>, Protocol)> {
+  let parts: Vec<_> = line.splitn(3, |b| *b == b' ').collect();
+  if parts.len() != 3 { return Err(HttpError::BadRequest) }
+
+  let method = match parts[0] {
+    b"GET" => Method::Get,
+    b"HEAD" => Method::Head,
+    _ => return Err(HttpError::BadMethod),
+  };
+  let (host, path) = {
+    let raw = parts[1];
+    if raw.len() >= 7 && raw[..7].eq_ignore_ascii_case(b"http://") {
+      let no_scheme = &raw[7..];
+      let slash = indexof(no_scheme, b'/');
+      println!("slash = {}", slash);
+      let host = Vec::from_iter(no_scheme[..slash].into_iter().cloned());
+      let mut path = Vec::from_iter(no_scheme[slash..].into_iter().cloned());
+
+      if path.is_empty() || path.ends_with(b"/") {
+        path.extend(b"index.html".into_iter().cloned());
+      }
+      (Some(host), path) 
+    } else {
+      (None, Vec::from_iter(parts[1].into_iter().cloned()))
+    }
+  };
+  let protocol = match parts[2] {
+    b"HTTP/1.0" => Protocol::Http10,
+    b"HTTP/1.1" => Protocol::Http11,
+    _ => return Err(HttpError::BadProtocol),
+  };
+
+  Ok((method, host, path, protocol)) 
 }
