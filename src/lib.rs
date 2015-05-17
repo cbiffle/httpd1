@@ -150,7 +150,11 @@ pub fn serve() -> Result<()> {
           }
         }
 
-        // TODO: record if-modified-since for subsequent reference
+        if starts_with_ignore_ascii_case(&hdr[..], b"if-modified-since") {
+          req.if_modified_since =
+              Some(Vec::from_iter(hdr[18..].iter().cloned()
+                                    .skip_while(|b| is_http_ws(*b))));
+        }
 
         // We've processed this header -- discard it.
         hdr.clear();
@@ -166,6 +170,7 @@ pub fn serve() -> Result<()> {
 }
 
 fn serve_request(req: Request) -> Result<()> {
+  println!("Request = {:?}", req);
   Ok(())
 }
 
@@ -206,7 +211,6 @@ fn parse_start_line(line: Vec<u8>) -> Result<Request> {
     if raw.len() >= 7 && raw[..7].eq_ignore_ascii_case(b"http://") {
       let no_scheme = &raw[7..];
       let slash = indexof(no_scheme, b'/');
-      println!("slash = {}", slash);
       let host = Vec::from_iter(no_scheme[..slash].into_iter().cloned());
       let mut path = Vec::from_iter(no_scheme[slash..].into_iter().cloned());
 
@@ -237,14 +241,17 @@ fn parse_start_line(line: Vec<u8>) -> Result<Request> {
     protocol: protocol,
     host: host,
     path: path,
+    if_modified_since: None,
   }) 
 }
 
+#[derive(Debug)]
 struct Request {
   method: Method,
   protocol: Protocol,
   host: Option<Vec<u8>>,
   path: Vec<u8>,
+  if_modified_since: Option<Vec<u8>>,
 }
 
 fn starts_with_ignore_ascii_case(v: &[u8], prefix: &[u8]) -> bool {
