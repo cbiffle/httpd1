@@ -104,7 +104,7 @@ fn test_connection_readline() {
 pub fn serve() -> Result<()> {
   let mut c = Connection::new();
 
-  loop {
+  loop {  // Process requests.
     let start_line = try!(c.readline());
     // Tolerate and skip blank lines between requests.
     if start_line.is_empty() { continue }
@@ -112,8 +112,70 @@ pub fn serve() -> Result<()> {
     let (method, mut host, mut path, protocol) =
         try!(parse_start_line(start_line));
 
-    println!("R: {:?} {:?} {:?} {:?}", method, host, path, protocol);
+    let mut hdr = Vec::new();
+    loop {  // Process request headers.
+      // Requests headers are slightly complicated because they can be broken
+      // over multiple lines using indentation.
+      let hdr_line = try!(c.readline());
+
+      if hdr_line.is_empty() || !is_http_ws(hdr_line[0]) {
+        // At an empty line or a line beginning with non-whitespace, we know
+        // we have received the entirety of the *previous* header and can
+        // process it.
+        if starts_with_ignore_ascii_case(&hdr[..], b"content-length:") {
+          panic!("501");
+        }
+        if starts_with_ignore_ascii_case(&hdr[..], b"transfer-encoding:") {
+          panic!("501");
+        }
+        if starts_with_ignore_ascii_case(&hdr[..], b"expect") {
+          panic!("501");
+        }
+        if starts_with_ignore_ascii_case(&hdr[..], b"if-match") {
+          panic!("501");
+        }
+        if starts_with_ignore_ascii_case(&hdr[..], b"if-none-match") {
+          panic!("501");
+        }
+        if starts_with_ignore_ascii_case(&hdr[..], b"if-unmodified-since") {
+          panic!("501");
+        }
+
+        if starts_with_ignore_ascii_case(&hdr[..], b"host") {
+          // Only accept a host from the request headers if none was provided
+          // in the start line.
+          if host.is_none() {
+            let new_host = Vec::from_iter(hdr[5..].iter().cloned()
+                .filter(|b| !is_http_ws(*b)));
+            if !new_host.is_empty() { host = Some(new_host) }
+          }
+        }
+
+        // TODO: record if-modified-since for subsequent reference
+
+        // We've processed this header -- discard it.
+        hdr.clear();
+      }
+
+      if hdr_line.is_empty() { break }
+
+      hdr.extend(hdr_line);
+    }
+
+    try!(serve_request(method, host, path, protocol));
   }
+}
+
+fn serve_request(method: Method,
+                 host: Option<Vec<u8>>,
+                 path: Vec<u8>,
+                 protocol: Protocol)
+                 -> Result<()> {
+  Ok(())
+}
+
+fn is_http_ws(c: u8) -> bool {
+  c == b' ' || c == b'\t'
 }
 
 #[derive(Debug)]
@@ -157,7 +219,15 @@ fn parse_start_line(line: Vec<u8>)
       if path.is_empty() || path.ends_with(b"/") {
         path.extend(b"index.html".into_iter().cloned());
       }
-      (Some(host), path) 
+
+      if host.is_empty() {
+        // The client can totally specify an "empty host" using a URL of the
+        // form `http:///foo`.  We are not amused, and treat this as an absent
+        // host specification.
+        (None, path)
+      } else {
+        (Some(host), path) 
+      }
     } else {
       (None, Vec::from_iter(parts[1].into_iter().cloned()))
     }
@@ -169,4 +239,22 @@ fn parse_start_line(line: Vec<u8>)
   };
 
   Ok((method, host, path, protocol)) 
+}
+
+fn starts_with_ignore_ascii_case(v: &[u8], prefix: &[u8]) -> bool {
+  if v.len() < prefix.len() {
+    false
+  } else {
+    v[..prefix.len()].eq_ignore_ascii_case(prefix)
+  }
+}
+
+#[test]
+fn test_starts_with_ignore_ascii_case() {
+  assert_eq!(true, starts_with_ignore_ascii_case(b"", b""));
+  assert_eq!(true, starts_with_ignore_ascii_case(b"foobar", b"foo"));
+  assert_eq!(true, starts_with_ignore_ascii_case(b"FOOBAR", b"foo"));
+
+  assert_eq!(false, starts_with_ignore_ascii_case(b"foo", b"foobar"));
+  assert_eq!(false, starts_with_ignore_ascii_case(b"", b"foobar"));
 }
