@@ -20,6 +20,7 @@ pub enum HttpError {
   BadMethod,
   BadRequest,
   BadProtocol,
+  MissingHost,
   IoError(io::Error),
 }
 
@@ -144,6 +145,8 @@ pub fn serve() -> Result<()> {
           // Only accept a host from the request headers if none was provided
           // in the start line.
           if req.host.is_none() {
+            // Just drop whitespace characters from the host header.  This
+            // questionable interpretation of the spec mimics publicfile.
             let new_host = Vec::from_iter(hdr[5..].iter().cloned()
                 .filter(|b| !is_http_ws(*b)));
             if !new_host.is_empty() { req.host = Some(new_host) }
@@ -171,6 +174,26 @@ pub fn serve() -> Result<()> {
 
 fn serve_request(req: Request) -> Result<()> {
   println!("Request = {:?}", req);
+
+  let host = match req.host {
+    None => match req.protocol {
+      Protocol::Http11 => return Err(HttpError::MissingHost),
+      Protocol::Http10 => vec![b'0'],
+    },
+    Some(h) => h,
+  };
+
+  // TODO: decode percent-escapes in path
+  let path = req.path;
+
+  let file_path = Vec::from_iter(
+    b"./".iter()
+      .chain(host.iter())
+      .chain(b"/".iter())
+      .chain(path.iter()));
+
+  println!("Would use file path {:?}", file_path);
+
   Ok(())
 }
 
@@ -206,17 +229,20 @@ fn parse_start_line(line: Vec<u8>) -> Result<Request> {
     b"HEAD" => Method::Head,
     _ => return Err(HttpError::BadMethod),
   };
-  let (host, path) = {
+  let (host, mut path) = {
     let raw = parts[1];
+    // Distinguish an old-style path-only request from a HTTP/1.1-style URL
+    // request by checking for the presence of an HTTP scheme.
     if raw.len() >= 7 && raw[..7].eq_ignore_ascii_case(b"http://") {
-      let no_scheme = &raw[7..];
-      let slash = indexof(no_scheme, b'/');
-      let host = Vec::from_iter(no_scheme[..slash].into_iter().cloned());
-      let mut path = Vec::from_iter(no_scheme[slash..].into_iter().cloned());
-
-      if path.is_empty() || path.ends_with(b"/") {
-        path.extend(b"index.html".into_iter().cloned());
-      }
+      // Split the remainder at the first slash.  The bytes to the left are the
+      // host name; to the right, including the delimiter, the path.
+      let (host, path) = raw[7..].split_at(indexof(&raw[7..], b'/'));
+      let host = Vec::from_iter(
+          host.into_iter()
+            .cloned()
+            .take_while(|b| *b != b':')  // Strip off port suffix.
+            .map(|b| b.to_ascii_lowercase()));  // Hosts are case insensitive.
+      let path = Vec::from_iter(path.into_iter().cloned());
 
       if host.is_empty() {
         // The client can totally specify an "empty host" using a URL of the
@@ -236,12 +262,18 @@ fn parse_start_line(line: Vec<u8>) -> Result<Request> {
     _ => return Err(HttpError::BadProtocol),
   };
 
+  // Slap an 'index.html' onto the end of any path that, from simple textual
+  // inspection, ends in a directory.
+  if path.is_empty() || path.ends_with(b"/") {
+    path.extend(b"index.html".into_iter().cloned());
+  }
+
   Ok(Request {
     method: method,
     protocol: protocol,
     host: host,
     path: path,
-    if_modified_since: None,
+    if_modified_since: None,  // Filled in later.
   }) 
 }
 
