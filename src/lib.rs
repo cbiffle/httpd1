@@ -109,8 +109,7 @@ pub fn serve() -> Result<()> {
     // Tolerate and skip blank lines between requests.
     if start_line.is_empty() { continue }
 
-    let (method, mut host, mut path, protocol) =
-        try!(parse_start_line(start_line));
+    let mut req = try!(parse_start_line(start_line));
 
     let mut hdr = Vec::new();
     loop {  // Process request headers.
@@ -144,10 +143,10 @@ pub fn serve() -> Result<()> {
         if starts_with_ignore_ascii_case(&hdr[..], b"host") {
           // Only accept a host from the request headers if none was provided
           // in the start line.
-          if host.is_none() {
+          if req.host.is_none() {
             let new_host = Vec::from_iter(hdr[5..].iter().cloned()
                 .filter(|b| !is_http_ws(*b)));
-            if !new_host.is_empty() { host = Some(new_host) }
+            if !new_host.is_empty() { req.host = Some(new_host) }
           }
         }
 
@@ -162,15 +161,11 @@ pub fn serve() -> Result<()> {
       hdr.extend(hdr_line);
     }
 
-    try!(serve_request(method, host, path, protocol));
+    try!(serve_request(req));
   }
 }
 
-fn serve_request(method: Method,
-                 host: Option<Vec<u8>>,
-                 path: Vec<u8>,
-                 protocol: Protocol)
-                 -> Result<()> {
+fn serve_request(req: Request) -> Result<()> {
   Ok(())
 }
 
@@ -197,8 +192,7 @@ fn indexof<T: PartialEq>(slice: &[T], item: T) -> usize {
   slice.len()
 }
 
-fn parse_start_line(line: Vec<u8>)
-    -> Result<(Method, Option<Vec<u8>>, Vec<u8>, Protocol)> {
+fn parse_start_line(line: Vec<u8>) -> Result<Request> {
   let parts: Vec<_> = line.splitn(3, |b| *b == b' ').collect();
   if parts.len() != 3 { return Err(HttpError::BadRequest) }
 
@@ -238,7 +232,19 @@ fn parse_start_line(line: Vec<u8>)
     _ => return Err(HttpError::BadProtocol),
   };
 
-  Ok((method, host, path, protocol)) 
+  Ok(Request {
+    method: method,
+    protocol: protocol,
+    host: host,
+    path: path,
+  }) 
+}
+
+struct Request {
+  method: Method,
+  protocol: Protocol,
+  host: Option<Vec<u8>>,
+  path: Vec<u8>,
 }
 
 fn starts_with_ignore_ascii_case(v: &[u8], prefix: &[u8]) -> bool {
