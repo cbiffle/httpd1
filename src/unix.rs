@@ -7,7 +7,6 @@ use std::fs;
 use std::io;
 use std::mem;
 
-use std::os::unix::ffi::OsStrExt;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::io::FromRawFd;
 
@@ -35,9 +34,9 @@ fn cvt<T: Default + PartialOrd>(t: T) -> io::Result<T> {
 ///
 /// Analog of djb's `file_open` from `file.c`.  Performs essentially the same
 /// tests, but assumes that files are never opened for write.
-pub fn safe_open(path: &[u8]) -> io::Result<OpenFile> {
+pub fn safe_open(path: &OsStr) -> io::Result<OpenFile> {
   // OsStr::from_bytes is specified as a no-cost cast operation on Unix.
-  let f = try!(fs::File::open(OsStr::from_bytes(path)));
+  let f = try!(fs::File::open(path));
   let s = try!(fstat(&f));
 
   if (s.st_mode & 0o444) != 0o444 {

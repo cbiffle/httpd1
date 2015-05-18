@@ -2,15 +2,17 @@
 #![feature(libc)]
 extern crate libc;
 
-use std::process;
 use std::io;
 use std::fs;
 use std::mem;
+use std::ffi;
 
 use std::io::BufRead;
 use std::io::Write;
 use std::ascii::AsciiExt;
 use std::iter::FromIterator;
+use std::os::unix::ffi::OsStringExt;
+use std::io::Read;
 
 pub mod unix;
 
@@ -20,12 +22,16 @@ pub enum HttpError {
   BadMethod,
   BadRequest,
   BadProtocol,
-  MissingHost,
+  SpanishInquisition,
+  PreconditionFailed,
+  NotImplemented(&'static [u8]),
   IoError(io::Error),
 }
 
-pub fn lift_io<T>(r: io::Result<T>) -> Result<T> {
-  r.map_err(|e| HttpError::IoError(e))
+impl From<io::Error> for HttpError {
+  fn from(e: io::Error) -> HttpError {
+    HttpError::IoError(e)
+  }
 }
 
 pub type Result<R> = std::result::Result<R, HttpError>;
@@ -33,6 +39,7 @@ pub type Result<R> = std::result::Result<R, HttpError>;
 pub struct Connection {
   input: io::BufReader<fs::File>,
   output: io::BufWriter<fs::File>,
+  buf: Box<[u8; 1024]>,
 }
 
 impl Connection {
@@ -40,6 +47,7 @@ impl Connection {
     Connection {
       input: io::BufReader::new(unix::stdin()),
       output: io::BufWriter::new(unix::stdout()),
+      buf: Box::new([0; 1024]),
     }
   }
 
@@ -47,24 +55,50 @@ impl Connection {
   /// This function guarantees that a successful result describes an entire
   /// line -- if the input is closed before CRLF, it signals `BrokenPipe`.
   ///
+  /// As suggested in section 19.3 of the HTTP/1.1 spec ("Tolerant
+  /// Applications"), we actually accept LF-terminated lines as well as CRLF.
+  ///
   /// The delimiter is removed before the result is returned.
   fn readline(&mut self) -> Result<Vec<u8>> {
-    // We can use read_until to find the next newline, and then look behind it
-    // to figure out whether we're done.
     let mut line = Vec::new();
-    loop {
-      match try!(lift_io(self.input.read_until(b'\n', &mut line))) {
-        0 => return Err(HttpError::ConnectionClosed),
-        _ => {
-          if line.ends_with(b"\r\n") {
-            let text_len = line.len() - 2;
-            line.truncate(text_len);
-            return Ok(line)
-          }
+    match try!(self.input.read_until(b'\n', &mut line)) {
+      0 => return Err(HttpError::ConnectionClosed),
+      _ => {
+        let len = line.len();
+        if line.last().cloned() == Some(b'\n') {
+          // We actually found our delimiter.
+          line.truncate(len - 1);
+          if line.last().cloned() == Some(b'\r') { line.truncate(len - 2) }
+          return Ok(line)
+        } else {
+          // The stream ended.
+          return Err(HttpError::ConnectionClosed)
         }
       }
     }
   }
+
+  fn write(&mut self, data: &[u8]) -> Result<()> {
+    // Don't use the default conversion from io::Error here -- failures on
+    // write are the client's fault and can't typically be reported, so it's
+    // important that we indicate ConnectionClosed.
+    self.output.write_all(data).map_err(|_| HttpError::ConnectionClosed)
+  }
+
+  fn write_to_string<T: ToString>(&mut self, value: T) -> Result<()> {
+    let s = value.to_string();
+    self.write(s.as_bytes())
+  }
+
+  fn write_buf(&mut self, count: usize) -> Result<()> {
+    self.output.write_all(&self.buf[..count])
+        .map_err(|_| HttpError::ConnectionClosed)
+  }
+
+  fn flush_output(&mut self) -> Result<()> {
+    self.output.flush().map_err(|_| HttpError::ConnectionClosed)
+  }
+    
 }
 
 #[test]
@@ -110,6 +144,7 @@ pub fn serve() -> Result<()> {
     // Tolerate and skip blank lines between requests.
     if start_line.is_empty() { continue }
 
+    // TODO failures here, e.g. bad methods, are not reported.
     let mut req = try!(parse_start_line(start_line));
 
     let mut hdr = Vec::new();
@@ -122,23 +157,16 @@ pub fn serve() -> Result<()> {
         // At an empty line or a line beginning with non-whitespace, we know
         // we have received the entirety of the *previous* header and can
         // process it.
-        if starts_with_ignore_ascii_case(&hdr[..], b"content-length:") {
-          panic!("501");
-        }
-        if starts_with_ignore_ascii_case(&hdr[..], b"transfer-encoding:") {
-          panic!("501");
+        if starts_with_ignore_ascii_case(&hdr[..], b"content-length:")
+            || starts_with_ignore_ascii_case(&hdr[..], b"transfer-encoding:") {
+          return Err(HttpError::NotImplemented(b"I can't receive messages"))
         }
         if starts_with_ignore_ascii_case(&hdr[..], b"expect") {
-          panic!("501");
+          return Err(HttpError::SpanishInquisition)
         }
-        if starts_with_ignore_ascii_case(&hdr[..], b"if-match") {
-          panic!("501");
-        }
-        if starts_with_ignore_ascii_case(&hdr[..], b"if-none-match") {
-          panic!("501");
-        }
-        if starts_with_ignore_ascii_case(&hdr[..], b"if-unmodified-since") {
-          panic!("501");
+        if starts_with_ignore_ascii_case(&hdr[..], b"if-match")
+            || starts_with_ignore_ascii_case(&hdr[..], b"if-unmodified-since") {
+          return Err(HttpError::PreconditionFailed)
         }
 
         if starts_with_ignore_ascii_case(&hdr[..], b"host") {
@@ -168,32 +196,165 @@ pub fn serve() -> Result<()> {
       hdr.extend(hdr_line);
     }
 
-    try!(serve_request(req));
+    // Back up protocol before we consume the request.
+    let protocol = req.protocol;
+
+    if let Some(error) = serve_request(&mut c, req).err() {
+      // Try to report this to the client.  Error reporting is best-effort.
+      let _ = barf(&mut c, protocol, error);
+      return Ok(())
+    }
+
+    // Otherwise, carry on accepting requests.
   }
 }
 
-fn serve_request(req: Request) -> Result<()> {
+fn barf(con: &mut Connection,
+        protocol: Protocol,
+        error: HttpError)
+        -> Result<()> {
+  println!("Failing: {:?}", error);
+
+  let (code, message): (&[u8], &[u8]) = match error {
+    HttpError::IoError(ioe) => match ioe.kind() {
+      io::ErrorKind::NotFound
+        | io::ErrorKind::PermissionDenied
+          => (b"404", b"not found"),
+      _ => (b"500", b"error"),
+    },
+
+    HttpError::ConnectionClosed => return Ok(()),
+
+    HttpError::BadMethod => (b"501", b"method not implemented"),
+    HttpError::BadRequest => (b"400", b"bad request"),
+    HttpError::BadProtocol => (b"505", b"HTTP version not supported"),
+    HttpError::SpanishInquisition => (b"417", b"expectations not supported"),
+    HttpError::PreconditionFailed => (b"412", b"bad precondition"),
+    
+    HttpError::NotImplemented(m) => (b"501", m),
+  };
+
+  try!(header(con, protocol, code, message));
+  try!(con.write(b"Content-Length: "));
+  try!(con.write_to_string(message.len()));
+  try!(con.write(b"\r\n"));
+
+  if protocol == Protocol::Http11 {
+    try!(con.write(b"Connection: close\r\n"));
+  }
+
+  try!(con.write(b"Content-Type: text/html\r\n\r\n"));
+
+  // TODO should not send this back on HEAD
+  try!(con.write(b"<html><body>"));
+  try!(con.write(message));
+  try!(con.write(b"</html></body>"));
+
+  con.flush_output()
+}
+
+fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
   println!("Request = {:?}", req);
 
   let host = match req.host {
     None => match req.protocol {
-      Protocol::Http11 => return Err(HttpError::MissingHost),
+      // HTTP 1.1 requests must include a host, one way or another.
+      Protocol::Http11 => return Err(HttpError::BadRequest),
+      // For HTTP/1.0 without a host, substitute the name "0".
       Protocol::Http10 => vec![b'0'],
     },
     Some(h) => h,
   };
 
   // TODO: decode percent-escapes in path
+  // We're manipulating the path as Vec because OsString's API is pretty thin.
   let path = req.path;
 
-  let file_path = Vec::from_iter(
+  let mut file_path = Vec::from_iter(
     b"./".iter()
       .chain(host.iter())
       .chain(b"/".iter())
-      .chain(path.iter()));
+      .chain(path.iter())
+      .cloned());
+  sanitize(&mut file_path);
+
+  let file_path = ffi::OsString::from_vec(file_path);
 
   println!("Would use file path {:?}", file_path);
+  let resource = try!(unix::safe_open(&file_path));
 
+  // TODO: process times.
+
+  try!(header(con, req.protocol, b"200", b"OK"));
+
+  // TODO: content type
+  // TODO: last-modified
+
+  let r = match req.protocol {
+    Protocol::Http10 => serve_request_unencoded(con, req.method, resource),
+    Protocol::Http11 => serve_request_chunked(con, req.method, resource),
+  };
+
+  try!(con.flush_output());
+  r
+}
+
+fn serve_request_unencoded(con: &mut Connection,
+                           method: Method,
+                           mut resource: unix::OpenFile) -> Result<()> {
+  try!(con.write(b"Content-Length:"));
+  try!(con.write_to_string(resource.length));
+  try!(con.write(b"\r\n"));
+
+  if method == Method::Get {
+    loop {
+      let count = try!(resource.file.read(&mut con.buf[..]));
+      if count == 0 { break }
+      try!(con.write_buf(count))
+    }
+  }
+  
+  // We use unencoded responses for HTTP/1.0 clients, and we assume that
+  // they don't use persistent connections.  This merits reconsideration (TODO).
+  Err(HttpError::ConnectionClosed)
+}
+
+fn serve_request_chunked(con: &mut Connection,
+                         method: Method,
+                         mut resource: unix::OpenFile) -> Result<()> {
+  try!(con.write(b"Transfer-Encoding: chunked\r\n"));
+
+  if method == Method::Get {
+    loop {
+      let count = try!(resource.file.read(&mut con.buf[..]));
+      if count == 0 {
+        // End of transfer.
+        try!(con.write(b"0\r\n\r\n"));
+        break
+      } else {
+        try!(con.write_to_string(count));
+        try!(con.write(b"\r\n"));
+        try!(con.write_buf(count));
+        try!(con.write(b"\r\n"))
+      }
+    }
+  }
+
+  // Leave the connection open for more requests.
+  Ok(())
+}
+
+fn header(con: &mut Connection, prot: Protocol, code: &[u8], msg: &[u8])
+    -> Result<()> {
+  try!(con.write(match prot {
+    Protocol::Http10 => b"HTTP/1.0 ",
+    Protocol::Http11 => b"HTTP/1.1 ",
+  }));
+  try!(con.write(code));
+  try!(con.write(b" "));
+  try!(con.write(msg));
+  try!(con.write(b"\r\nServer: abstract screaming\r\n"));
+  // TODO date
   Ok(())
 }
 
@@ -201,13 +362,41 @@ fn is_http_ws(c: u8) -> bool {
   c == b' ' || c == b'\t'
 }
 
-#[derive(Debug)]
+fn sanitize(path: &mut Vec<u8>) {
+  let mut j = 0;
+  for i in 0..path.len() {
+    match path[i] {
+      0 => {
+        path[j] = b'_';
+        j += 1;
+      },
+      b'/' => {
+        if i == 0 || path[i - 1] != b'/' {
+          path[j] = b'/';
+          j += 1;
+        }
+      },
+      b'.' => {
+        path[j] = if i == 0 || path[i - 1] != b'/' { b'.' }
+                  else { b':' };
+        j += 1;
+      },
+      c => {
+        path[j] = c;
+        j += 1;
+      },
+    }
+  }
+  path.truncate(j);
+}
+
+#[derive(Debug, PartialEq)]
 enum Method {
   Get,
   Head,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 enum Protocol {
   Http10,
   Http11,
