@@ -15,6 +15,7 @@ use std::os::unix::ffi::OsStringExt;
 use std::io::Read;
 
 pub mod unix;
+mod filetype;
 
 #[derive(Debug)]
 pub enum HttpError {
@@ -290,6 +291,8 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
       .cloned());
   sanitize(&mut file_path);
 
+  let content_type = filetype::filetype(&file_path[..]);
+
   let file_path = ffi::OsString::from_vec(file_path);
 
   println!("Would use file path {:?}", file_path);
@@ -298,8 +301,10 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
   // TODO: process times.
 
   try!(header(con, req.protocol, b"200", b"OK"));
+  try!(con.write(b"Content-Type: "));
+  try!(con.write(&content_type[..]));
+  try!(con.write(b"\r\n"));
 
-  // TODO: content type
   // TODO: last-modified
 
   let r = match req.protocol {
