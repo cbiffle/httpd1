@@ -14,8 +14,8 @@ use std::str::FromStr;
 /// - The global filesystem root (shed via `chroot`)
 /// - The calling uid/gid and supplementary groups.
 fn main() {
-  // Only chroot if a root directory is provided.  This behavior mimics
-  // publicfile, but seems suspicious to me.  (TODO)
+  // Only chroot if a root directory is provided.  This allows for testing (most
+  // of the) the daemon as an unprivileged user.
   if let Some(root) = env::args().nth(1) {
     if env::set_current_dir(&root).is_err() { process::exit(20) }
     if unix::chroot(root.as_bytes()).is_err() { process::exit(30) }
