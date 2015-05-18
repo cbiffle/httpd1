@@ -266,9 +266,9 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
     Some(h) => h,
   };
 
-  // TODO: decode percent-escapes in path
   // We're manipulating the path as Vec because OsString's API is pretty thin.
-  let path = req.path;
+  let mut path = req.path;
+  try!(unescape(&mut path));
 
   let mut file_path = Vec::from_iter(
     b"./".iter()
@@ -341,6 +341,42 @@ fn serve_request_chunked(con: &mut Connection,
   }
 
   // Leave the connection open for more requests.
+  Ok(())
+}
+
+fn unescape(path: &mut Vec<u8>) -> Result<()> {
+  fn fromhex(b: u8) -> Option<u8> {
+    match b {
+      b'0' ... b'9' => Some(b - b'0'),
+      b'A' ... b'F' => Some(b - b'A' + 10),
+      b'a' ... b'f' => Some(b - b'a' + 10),
+      _ => None,
+    }
+  }
+
+  let mut i = 0;
+  let mut j = 0;
+  while i < path.len() {
+    let c = path[i];
+    i += 1;
+
+    if c == b'%' {
+      // Possible valid escape.
+      if (path.len() - i) < 2 { return Err(HttpError::BadRequest) }
+
+      if let (Some(a), Some(b)) = (fromhex(path[i]), fromhex(path[i + 1])) {
+        path[j] = a * 16 + b;
+        j += 1;
+        i += 2;  // skip consumed hex characters.
+      } else {
+        return Err(HttpError::BadRequest)
+      }
+    } else {
+      path[j] = c;
+      j += 1;
+    }
+  }
+  path.truncate(j);
   Ok(())
 }
 
