@@ -24,7 +24,7 @@ fn main() {
   with_env_var("GID", set_all_groups);
   with_env_var("UID", unix::setuid);
 
-  let _ = httpd::serve();
+  if httpd::serve().is_err() { process::exit(40) }
 }
 
 /// Paranoically extended version of setgid which also nukes the supplemental
