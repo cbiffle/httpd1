@@ -144,8 +144,10 @@ pub fn serve() -> Result<()> {
     // Tolerate and skip blank lines between requests.
     if start_line.is_empty() { continue }
 
-    // TODO failures here, e.g. bad methods, are not reported.
-    let mut req = try!(parse_start_line(start_line));
+    let mut req = match parse_start_line(start_line) {
+      Err(e) => return barf(&mut c, None, true, e),
+      Ok(r) => r,
+    };
 
     let mut hdr = Vec::new();
     loop {  // Process request headers.
@@ -196,12 +198,13 @@ pub fn serve() -> Result<()> {
       hdr.extend(hdr_line);
     }
 
-    // Back up protocol before we consume the request.
+    // Back up two pieces before we consume the request.
     let protocol = req.protocol;
+    let method = req.method;
 
     if let Some(error) = serve_request(&mut c, req).err() {
       // Try to report this to the client.  Error reporting is best-effort.
-      let _ = barf(&mut c, protocol, error);
+      let _ = barf(&mut c, Some(protocol), (method == Method::Get), error);
       return Ok(())
     }
 
@@ -210,7 +213,8 @@ pub fn serve() -> Result<()> {
 }
 
 fn barf(con: &mut Connection,
-        protocol: Protocol,
+        protocol: Option<Protocol>,
+        send_content: bool,
         error: HttpError)
         -> Result<()> {
   println!("Failing: {:?}", error);
@@ -234,21 +238,22 @@ fn barf(con: &mut Connection,
     HttpError::NotImplemented(m) => (b"501", m),
   };
 
-  try!(header(con, protocol, code, message));
+  try!(header(con, protocol.unwrap_or(Protocol::Http10), code, message));
   try!(con.write(b"Content-Length: "));
   try!(con.write_to_string(message.len()));
   try!(con.write(b"\r\n"));
 
-  if protocol == Protocol::Http11 {
+  if protocol == Some(Protocol::Http11) {
     try!(con.write(b"Connection: close\r\n"));
   }
 
   try!(con.write(b"Content-Type: text/html\r\n\r\n"));
 
-  // TODO should not send this back on HEAD
-  try!(con.write(b"<html><body>"));
-  try!(con.write(message));
-  try!(con.write(b"</html></body>"));
+  if send_content {
+    try!(con.write(b"<html><body>"));
+    try!(con.write(message));
+    try!(con.write(b"</html></body>"));
+  }
 
   con.flush_output()
 }
@@ -426,7 +431,7 @@ fn sanitize(path: &mut Vec<u8>) {
   path.truncate(j);
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 enum Method {
   Get,
   Head,
