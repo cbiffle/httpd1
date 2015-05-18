@@ -268,7 +268,14 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
       // For HTTP/1.0 without a host, substitute the name "0".
       Protocol::Http10 => vec![b'0'],
     },
-    Some(h) => h,
+    Some(mut h) => {
+      for c in h.iter_mut() {
+        *c = (*c).to_ascii_lowercase()
+      }
+      let n = indexof(&h, b':');
+      h.truncate(n);
+      h
+    },
   };
 
   // We're manipulating the path as Vec because OsString's API is pretty thin.
@@ -467,11 +474,7 @@ fn parse_start_line(line: Vec<u8>) -> Result<Request> {
       // Split the remainder at the first slash.  The bytes to the left are the
       // host name; to the right, including the delimiter, the path.
       let (host, path) = raw[7..].split_at(indexof(&raw[7..], b'/'));
-      let host = Vec::from_iter(
-          host.into_iter()
-            .cloned()
-            .take_while(|b| *b != b':')  // Strip off port suffix.
-            .map(|b| b.to_ascii_lowercase()));  // Hosts are case insensitive.
+      let host = Vec::from_iter(host.into_iter().cloned());
       let path = Vec::from_iter(path.into_iter().cloned());
 
       if host.is_empty() {
