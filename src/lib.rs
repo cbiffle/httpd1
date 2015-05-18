@@ -302,9 +302,9 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
 fn serve_request_unencoded(con: &mut Connection,
                            method: Method,
                            mut resource: unix::OpenFile) -> Result<()> {
-  try!(con.write(b"Content-Length:"));
+  try!(con.write(b"Content-Length: "));
   try!(con.write_to_string(resource.length));
-  try!(con.write(b"\r\n"));
+  try!(con.write(b"\r\n\r\n"));
 
   if method == Method::Get {
     loop {
