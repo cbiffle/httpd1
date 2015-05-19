@@ -16,6 +16,7 @@ use std::io::Read;
 
 pub mod unix;
 mod filetype;
+mod timeout;
 
 #[derive(Debug)]
 pub enum HttpError {
