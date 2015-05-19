@@ -9,7 +9,6 @@ use std::os::unix::io::AsRawFd;
 mod ffi {
   use libc::{c_int, time_t};
 
-  #[link(name="timeout", kind="static")]
   extern {
     pub fn wait_for_data(fd: c_int,
                          seconds: time_t)
