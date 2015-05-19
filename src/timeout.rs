@@ -41,3 +41,23 @@ impl<T> ReadTimeout for io::BufReader<T>
     self.get_mut().wait_for_data(seconds)
   }
 }
+
+/// A wrapper for `File` that ensures that all read operations are done under
+/// a (fixed) timeout.
+pub struct SafeFile(fs::File);
+
+impl io::Read for SafeFile {
+  fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    self.0.wait_for_data(60).and_then(|_| self.0.read(buf))
+  }
+}
+
+impl io::Write for SafeFile {
+  fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+    self.0.write(buf)
+  }
+
+  fn flush(&mut self) -> io::Result<()> {
+    self.0.flush()
+  }
+}
