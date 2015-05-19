@@ -3,7 +3,6 @@
 extern crate libc;
 
 use std::io;
-use std::fs;
 use std::mem;
 use std::ffi;
 
@@ -40,7 +39,7 @@ pub type Result<R> = std::result::Result<R, HttpError>;
 
 pub struct Connection {
   input: io::BufReader<timeout::SafeFile>,
-  output: io::BufWriter<fs::File>,
+  output: io::BufWriter<timeout::SafeFile>,
   buf: Box<[u8; 1024]>,
 }
 
@@ -48,7 +47,7 @@ impl Connection {
   fn new() -> Connection {
     Connection {
       input: io::BufReader::new(timeout::SafeFile::new(unix::stdin())),
-      output: io::BufWriter::new(unix::stdout()),
+      output: io::BufWriter::new(timeout::SafeFile::new(unix::stdout())),
       buf: Box::new([0; 1024]),
     }
   }

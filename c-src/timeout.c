@@ -25,3 +25,25 @@ int wait_for_data(int fd, time_t seconds) {
   return 0;
 }
 
+/*
+ * Waits for a file descriptor to become writeable within a specified number of
+ * seconds.
+ */
+int wait_for_writeable(int fd, time_t seconds) {
+  struct timeval tv = {
+    .tv_sec = seconds,
+    .tv_usec = 0,
+  };
+
+  fd_set fds;
+  FD_ZERO(&fds);
+  FD_SET(fd, &fds);
+
+  if (select(fd + 1, NULL, &fds, NULL, &tv) == -1) return -1;
+  if (!FD_ISSET(fd, &fds)) {
+    errno = ETIMEDOUT;
+    return -1;
+  }
+
+  return 0;
+}
