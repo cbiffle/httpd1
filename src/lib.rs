@@ -35,20 +35,26 @@ impl From<io::Error> for HttpError {
   }
 }
 
+const INPUT_BUF_BYTES: usize = 1024;
+const OUTPUT_BUF_BYTES: usize = 1024;
+const FILE_BUF_BYTES: usize = 1024;
+
 pub type Result<R> = std::result::Result<R, HttpError>;
 
 pub struct Connection {
   input: io::BufReader<timeout::SafeFile>,
   output: io::BufWriter<timeout::SafeFile>,
-  buf: Box<[u8; 1024]>,
+  buf: Box<[u8; FILE_BUF_BYTES]>,
 }
 
 impl Connection {
   fn new() -> Connection {
     Connection {
-      input: io::BufReader::new(timeout::SafeFile::new(unix::stdin())),
-      output: io::BufWriter::new(timeout::SafeFile::new(unix::stdout())),
-      buf: Box::new([0; 1024]),
+      input: io::BufReader::with_capacity(INPUT_BUF_BYTES,
+          timeout::SafeFile::new(unix::stdin())),
+      output: io::BufWriter::with_capacity(OUTPUT_BUF_BYTES,
+          timeout::SafeFile::new(unix::stdout())),
+      buf: Box::new([0; FILE_BUF_BYTES]),
     }
   }
 
