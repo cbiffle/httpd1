@@ -91,6 +91,11 @@ impl Connection {
     self.write(s.as_bytes())
   }
 
+  fn write_hex(&mut self, value: usize) -> Result<()> {
+    let s = format!("{:x}", value);
+    self.write(s.as_bytes())
+  }
+
   fn write_buf(&mut self, count: usize) -> Result<()> {
     self.output.write_all(&self.buf[..count])
         .map_err(|_| HttpError::ConnectionClosed)
@@ -333,7 +338,7 @@ fn serve_request_unencoded(con: &mut Connection,
 fn serve_request_chunked(con: &mut Connection,
                          method: Method,
                          mut resource: unix::OpenFile) -> Result<()> {
-  try!(con.write(b"Transfer-Encoding: chunked\r\n"));
+  try!(con.write(b"Transfer-Encoding: chunked\r\n\r\n"));
 
   if method == Method::Get {
     loop {
@@ -343,7 +348,7 @@ fn serve_request_chunked(con: &mut Connection,
         try!(con.write(b"0\r\n\r\n"));
         break
       } else {
-        try!(con.write_to_string(count));
+        try!(con.write_hex(count));
         try!(con.write(b"\r\n"));
         try!(con.write_buf(count));
         try!(con.write(b"\r\n"))
