@@ -15,6 +15,7 @@ fn canned_mapping(ext: &[u8]) -> &'static [u8] {
     b"jpeg" | b"jpg"  => b"image/jpeg",
     b"png"            => b"image/png",
     b"pdf"            => b"application/pdf",
+    b"css"            => b"text/css",
     _ => b"text/plain",
   }
 }
