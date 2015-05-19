@@ -36,7 +36,6 @@ fn set_all_groups(gid: libc::gid_t) -> io::Result<()> {
 
 fn with_env_var<V: FromStr>(var: &str, f: fn(V) -> io::Result<()>) {
   if let Ok(val_str) = env::var(var) {
-    println!("{} = {}", var, val_str);
     if let Ok(val) = FromStr::from_str(&val_str) {
       if f(val).is_err() { process::exit(30) }
     } else {

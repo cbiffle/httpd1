@@ -218,8 +218,6 @@ fn barf(con: &mut Connection,
         send_content: bool,
         error: HttpError)
         -> Result<()> {
-  println!("Failing: {:?}", error);
-
   let (code, message): (&[u8], &[u8]) = match error {
     HttpError::IoError(ioe) => match ioe.kind() {
       io::ErrorKind::NotFound
@@ -260,8 +258,6 @@ fn barf(con: &mut Connection,
 }
 
 fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
-  println!("Request = {:?}", req);
-
   let host = match req.host {
     None => match req.protocol {
       // HTTP 1.1 requests must include a host, one way or another.
@@ -294,8 +290,6 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
   let content_type = filetype::filetype(&file_path[..]);
 
   let file_path = ffi::OsString::from_vec(file_path);
-
-  println!("Would use file path {:?}", file_path);
   let resource = try!(unix::safe_open(&file_path));
 
   // TODO: process times.
