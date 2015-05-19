@@ -244,7 +244,7 @@ fn barf(con: &mut Connection,
 
   try!(header(con, protocol.unwrap_or(Protocol::Http10), code, message));
   try!(con.write(b"Content-Length: "));
-  try!(con.write_to_string(message.len()));
+  try!(con.write_to_string(message.len() + 26));  // length of HTML below
   try!(con.write(b"\r\n"));
 
   if protocol == Some(Protocol::Http11) {
