@@ -39,7 +39,7 @@ impl From<io::Error> for HttpError {
 pub type Result<R> = std::result::Result<R, HttpError>;
 
 pub struct Connection {
-  input: io::BufReader<fs::File>,
+  input: io::BufReader<timeout::SafeFile>,
   output: io::BufWriter<fs::File>,
   buf: Box<[u8; 1024]>,
 }
@@ -47,7 +47,7 @@ pub struct Connection {
 impl Connection {
   fn new() -> Connection {
     Connection {
-      input: io::BufReader::new(unix::stdin()),
+      input: io::BufReader::new(timeout::SafeFile::new(unix::stdin())),
       output: io::BufWriter::new(unix::stdout()),
       buf: Box::new([0; 1024]),
     }

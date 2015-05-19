@@ -46,6 +46,12 @@ impl<T> ReadTimeout for io::BufReader<T>
 /// a (fixed) timeout.
 pub struct SafeFile(fs::File);
 
+impl SafeFile {
+  pub fn new(inner: fs::File) -> Self {
+    SafeFile(inner)
+  }
+}
+
 impl io::Read for SafeFile {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
     self.0.wait_for_data(60).and_then(|_| self.0.read(buf))
