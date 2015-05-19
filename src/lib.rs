@@ -16,30 +16,13 @@ use std::io::Read;
 pub mod unix;
 mod filetype;
 mod timeout;
+mod error;
 
-#[derive(Debug)]
-pub enum HttpError {
-  ConnectionClosed,
-  BadMethod,
-  BadRequest,
-  BadProtocol,
-  SpanishInquisition,
-  PreconditionFailed,
-  NotImplemented(&'static [u8]),
-  IoError(io::Error),
-}
-
-impl From<io::Error> for HttpError {
-  fn from(e: io::Error) -> HttpError {
-    HttpError::IoError(e)
-  }
-}
+use error::*;
 
 const INPUT_BUF_BYTES: usize = 1024;
 const OUTPUT_BUF_BYTES: usize = 1024;
 const FILE_BUF_BYTES: usize = 1024;
-
-pub type Result<R> = std::result::Result<R, HttpError>;
 
 pub struct Connection {
   input: io::BufReader<timeout::SafeFile>,
