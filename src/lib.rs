@@ -99,6 +99,10 @@ pub fn serve() -> Result<()> {
   }
 }
 
+/// Signals the given error to the client.
+///
+/// Currently, this also closes the connection, though this seems like a
+/// decision better left to the caller (TODO).
 fn barf(con: &mut Connection,
         protocol: Option<Protocol>,
         send_content: bool,
@@ -124,7 +128,8 @@ fn barf(con: &mut Connection,
   };
 
   let now = time::get_time();
-  try!(header(con, protocol.unwrap_or(Protocol::Http10), &now, code, message));
+  try!(start_response(con, protocol.unwrap_or(Protocol::Http10), &now,
+                      code, message));
   try!(con.write(b"Content-Length: "));
   try!(con.write_to_string(message.len() + 26));  // length of HTML below
   try!(con.write(b"\r\n"));
@@ -162,7 +167,6 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
     },
   };
 
-  // We're manipulating the path as Vec because OsString's API is pretty thin.
   let mut path = req.path;
   try!(percent::unescape(&mut path));
 
@@ -180,7 +184,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
 
   let now = time::get_time();
 
-  try!(header(con, req.protocol, &now, b"200", b"OK"));
+  try!(start_response(con, req.protocol, &now, b"200", b"OK"));
   try!(con.write(b"Content-Type: "));
   try!(con.write(&content_type[..]));
   try!(con.write(b"\r\n"));
@@ -227,16 +231,12 @@ fn serve_request_chunked(con: &mut Connection,
   if method == Method::Get {
     loop {
       let count = try!(resource.file.read(&mut con.buf[..]));
-      if count == 0 {
-        // End of transfer.
-        try!(con.write(b"0\r\n\r\n"));
-        break
-      } else {
-        try!(con.write_hex(count));
-        try!(con.write(b"\r\n"));
-        try!(con.write_buf(count));
-        try!(con.write(b"\r\n"))
-      }
+      try!(con.write_hex(count));
+      try!(con.write(b"\r\n"));
+      try!(con.write_buf(count));
+      try!(con.write(b"\r\n"));
+
+      if count == 0 { break }  // End of transfer.
     }
   }
 
@@ -244,12 +244,15 @@ fn serve_request_chunked(con: &mut Connection,
   Ok(())
 }
 
-fn header(con: &mut Connection,
-          prot: Protocol,
-          now: &time::Timespec,
-          code: &[u8],
-          msg: &[u8])
-    -> Result<()> {
+/// Begins a response, printing the status line and a set of common headers.
+/// The caller should follow up by adding any desired headers and then writing
+/// a CRLF.
+fn start_response(con: &mut Connection,
+                  prot: Protocol,
+                  now: &time::Timespec,
+                  code: &[u8],
+                  msg: &[u8])
+                  -> Result<()> {
 
   let now = format!("{}", time::at_utc(*now).rfc822());
 
