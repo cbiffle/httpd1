@@ -16,6 +16,7 @@ mod filetype;
 mod timeout;
 mod con;
 mod error;
+mod path;
 mod percent;
 
 use self::error::*;
@@ -169,7 +170,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
       .chain(b"/".iter())
       .chain(path.iter())
       .cloned());
-  sanitize(&mut file_path);
+  path::sanitize(&mut file_path);
 
   let content_type = filetype::filetype(&file_path[..]);
 
@@ -255,34 +256,6 @@ fn header(con: &mut Connection, prot: Protocol, code: &[u8], msg: &[u8])
 
 fn is_http_ws(c: u8) -> bool {
   c == b' ' || c == b'\t'
-}
-
-fn sanitize(path: &mut Vec<u8>) {
-  let mut j = 0;
-  for i in 0..path.len() {
-    match path[i] {
-      0 => {
-        path[j] = b'_';
-        j += 1;
-      },
-      b'/' => {
-        if i == 0 || path[i - 1] != b'/' {
-          path[j] = b'/';
-          j += 1;
-        }
-      },
-      b'.' => {
-        path[j] = if i == 0 || path[i - 1] != b'/' { b'.' }
-                  else { b':' };
-        j += 1;
-      },
-      c => {
-        path[j] = c;
-        j += 1;
-      },
-    }
-  }
-  path.truncate(j);
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
