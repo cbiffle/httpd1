@@ -1,6 +1,7 @@
 // Need libc to do unbuffered stdout/stdin :-/
 #![feature(libc)]
 extern crate libc;
+extern crate time;
 
 use std::io;
 use std::ffi;
@@ -122,7 +123,8 @@ fn barf(con: &mut Connection,
     HttpError::NotImplemented(m) => (b"501", m),
   };
 
-  try!(header(con, protocol.unwrap_or(Protocol::Http10), code, message));
+  let now = time::now_utc();
+  try!(header(con, protocol.unwrap_or(Protocol::Http10), &now, code, message));
   try!(con.write(b"Content-Length: "));
   try!(con.write_to_string(message.len() + 26));  // length of HTML below
   try!(con.write(b"\r\n"));
@@ -177,9 +179,9 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
   let file_path = ffi::OsString::from_vec(file_path);
   let resource = try!(unix::safe_open(&file_path));
 
-  // TODO: process times.
+  let now = time::now_utc();
 
-  try!(header(con, req.protocol, b"200", b"OK"));
+  try!(header(con, req.protocol, &now, b"200", b"OK"));
   try!(con.write(b"Content-Type: "));
   try!(con.write(&content_type[..]));
   try!(con.write(b"\r\n"));
@@ -240,7 +242,11 @@ fn serve_request_chunked(con: &mut Connection,
   Ok(())
 }
 
-fn header(con: &mut Connection, prot: Protocol, code: &[u8], msg: &[u8])
+fn header(con: &mut Connection,
+          prot: Protocol,
+          now: &time::Tm,
+          code: &[u8],
+          msg: &[u8])
     -> Result<()> {
   try!(con.write(match prot {
     Protocol::Http10 => b"HTTP/1.0 ",
@@ -249,7 +255,9 @@ fn header(con: &mut Connection, prot: Protocol, code: &[u8], msg: &[u8])
   try!(con.write(code));
   try!(con.write(b" "));
   try!(con.write(msg));
-  try!(con.write(b"\r\nServer: abstract screaming\r\n"));
+  try!(con.write(b"\r\nServer: abstract screaming\r\nDate: "));
+  try!(con.write(format!("{}", now.rfc822()).as_bytes()));
+  try!(con.write(b"\r\n"));
   // TODO date
   Ok(())
 }
