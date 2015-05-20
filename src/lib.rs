@@ -166,13 +166,12 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
   let mut path = req.path;
   try!(percent::unescape(&mut path));
 
-  let mut file_path = Vec::from_iter(
+  let file_path = path::sanitize(
     b"./".iter()
       .chain(host.iter())
       .chain(b"/".iter())
       .chain(path.iter())
       .cloned());
-  path::sanitize(&mut file_path);
 
   let content_type = filetype::filetype(&file_path[..]);
 
