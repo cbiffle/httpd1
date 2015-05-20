@@ -1,6 +1,7 @@
 //! A thin veneer for libc et al.
 
 extern crate libc;
+extern crate time;
 
 use std::ffi::OsStr;
 use std::fs;
@@ -48,7 +49,7 @@ pub fn safe_open(path: &OsStr) -> io::Result<OpenFile> {
   } else {
     Ok(OpenFile {
       file: f,
-      mtime: s.st_mtime,
+      mtime: time::Timespec { sec: s.st_mtime, nsec: 0 },
       length: s.st_size as u64,
     })
   }
@@ -60,7 +61,7 @@ pub struct OpenFile {
   pub file: fs::File,
   /// The file's modification time in seconds since the epoch, at the last time
   /// we checked.
-  pub mtime: i64,
+  pub mtime: time::Timespec,
   /// The file's length, at the last time we checked.  Note that this may change
   /// at runtime; take care.
   pub length: u64,

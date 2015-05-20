@@ -123,7 +123,7 @@ fn barf(con: &mut Connection,
     HttpError::NotImplemented(m) => (b"501", m),
   };
 
-  let now = time::now_utc();
+  let now = time::get_time();
   try!(header(con, protocol.unwrap_or(Protocol::Http10), &now, code, message));
   try!(con.write(b"Content-Length: "));
   try!(con.write_to_string(message.len() + 26));  // length of HTML below
@@ -179,14 +179,17 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
   let file_path = ffi::OsString::from_vec(file_path);
   let resource = try!(unix::safe_open(&file_path));
 
-  let now = time::now_utc();
+  let now = time::get_time();
 
   try!(header(con, req.protocol, &now, b"200", b"OK"));
   try!(con.write(b"Content-Type: "));
   try!(con.write(&content_type[..]));
   try!(con.write(b"\r\n"));
 
-  // TODO: last-modified
+  let mtime = format!("{}", time::at_utc(resource.mtime).rfc822());
+  try!(con.write(b"Last-Modified: "));
+  try!(con.write(mtime.as_bytes()));
+  try!(con.write(b"\r\n"));
 
   let r = match req.protocol {
     Protocol::Http10 => serve_request_unencoded(con, req.method, resource),
@@ -244,10 +247,13 @@ fn serve_request_chunked(con: &mut Connection,
 
 fn header(con: &mut Connection,
           prot: Protocol,
-          now: &time::Tm,
+          now: &time::Timespec,
           code: &[u8],
           msg: &[u8])
     -> Result<()> {
+
+  let now = format!("{}", time::at_utc(*now).rfc822());
+
   try!(con.write(match prot {
     Protocol::Http10 => b"HTTP/1.0 ",
     Protocol::Http11 => b"HTTP/1.1 ",
@@ -256,7 +262,7 @@ fn header(con: &mut Connection,
   try!(con.write(b" "));
   try!(con.write(msg));
   try!(con.write(b"\r\nServer: abstract screaming\r\nDate: "));
-  try!(con.write(format!("{}", now.rfc822()).as_bytes()));
+  try!(con.write(now.as_bytes()));
   try!(con.write(b"\r\n"));
   // TODO date
   Ok(())
