@@ -89,7 +89,7 @@ fn barf(con: &mut Connection,
   if send_content {
     try!(con.write(b"<html><body>"));
     try!(con.write(message));
-    try!(con.write(b"</html></body>"));
+    try!(con.write(b"</body></html>"));
   }
 
   con.flush_output()
