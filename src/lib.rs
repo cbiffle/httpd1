@@ -77,7 +77,7 @@ fn barf(con: &mut Connection,
   try!(start_response(con, protocol.unwrap_or(Protocol::Http10), &now,
                       code, message));
   try!(con.write(b"Content-Length: "));
-  try!(con.write_to_string(message.len() + 26));  // length of HTML below
+  try!(con.write_to_string(message.len() + 28));  // length of HTML wrapper
   try!(con.write(b"\r\n"));
 
   if protocol == Some(Protocol::Http11) {
@@ -89,7 +89,7 @@ fn barf(con: &mut Connection,
   if send_content {
     try!(con.write(b"<html><body>"));
     try!(con.write(message));
-    try!(con.write(b"</body></html>"));
+    try!(con.write(b"</body></html>\r\n"));
   }
 
   con.flush_output()
