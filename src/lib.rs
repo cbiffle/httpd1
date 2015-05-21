@@ -78,7 +78,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
       .chain(path.iter())
       .cloned());
 
-  let content_type = filetype::filetype(&file_path[..]);
+  let content_type = filetype::from_path(&file_path[..]);
 
   // We take this silly round-trip through OsString because we can't ensure
   // that the path is valid UTF-8, so we can't hit str/String safely.

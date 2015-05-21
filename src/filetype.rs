@@ -4,7 +4,7 @@ use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 use std::iter::FromIterator;
 
-pub fn filetype(file_path: &[u8]) -> Vec<u8> {
+pub fn from_path(file_path: &[u8]) -> Vec<u8> {
   match file_path.rsplitn(2, |b| *b == b'.').next() {
     Some(ext) => env_mapping(ext)
                    .unwrap_or_else(|| canned_mapping(ext)),
