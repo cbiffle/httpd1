@@ -8,82 +8,28 @@ use std::ffi;
 
 use std::io::Write;
 use std::ascii::AsciiExt;
-use std::iter::FromIterator;
 use std::os::unix::ffi::OsStringExt;
 use std::io::Read;
 
 pub mod unix;
+mod ascii;
 mod filetype;
 mod timeout;
 mod con;
 mod error;
 mod path;
 mod percent;
+mod request;
 
 use self::error::*;
 use self::con::Connection;  // interesting, wildcard doesn't work for this.
+use self::request::{Method, Protocol, Request};
 
 pub fn serve() -> Result<()> {
   let mut c = Connection::new();
 
   loop {  // Process requests.
-    let start_line = try!(c.readline());
-    // Tolerate and skip blank lines between requests.
-    if start_line.is_empty() { continue }
-
-    let mut req = match parse_start_line(start_line) {
-      Err(e) => return barf(&mut c, None, true, e),
-      Ok(r) => r,
-    };
-
-    let mut hdr = Vec::new();
-    loop {  // Process request headers.
-      // Requests headers are slightly complicated because they can be broken
-      // over multiple lines using indentation.
-      let hdr_line = try!(c.readline());
-
-      if hdr_line.is_empty() || !is_http_ws(hdr_line[0]) {
-        // At an empty line or a line beginning with non-whitespace, we know
-        // we have received the entirety of the *previous* header and can
-        // process it.
-        if starts_with_ignore_ascii_case(&hdr[..], b"content-length:")
-            || starts_with_ignore_ascii_case(&hdr[..], b"transfer-encoding:") {
-          return Err(HttpError::NotImplemented(b"I can't receive messages"))
-        }
-        if starts_with_ignore_ascii_case(&hdr[..], b"expect") {
-          return Err(HttpError::SpanishInquisition)
-        }
-        if starts_with_ignore_ascii_case(&hdr[..], b"if-match")
-            || starts_with_ignore_ascii_case(&hdr[..], b"if-unmodified-since") {
-          return Err(HttpError::PreconditionFailed)
-        }
-
-        if starts_with_ignore_ascii_case(&hdr[..], b"host") {
-          // Only accept a host from the request headers if none was provided
-          // in the start line.
-          if req.host.is_none() {
-            // Just drop whitespace characters from the host header.  This
-            // questionable interpretation of the spec mimics publicfile.
-            let new_host = Vec::from_iter(hdr[5..].iter().cloned()
-                .filter(|b| !is_http_ws(*b)));
-            if !new_host.is_empty() { req.host = Some(new_host) }
-          }
-        }
-
-        if starts_with_ignore_ascii_case(&hdr[..], b"if-modified-since") {
-          req.if_modified_since =
-              Some(Vec::from_iter(hdr[18..].iter().cloned()
-                                    .skip_while(|b| is_http_ws(*b))));
-        }
-
-        // We've processed this header -- discard it.
-        hdr.clear();
-      }
-
-      if hdr_line.is_empty() { break }
-
-      hdr.extend(hdr_line);
-    }
+    let req = try!(request::take_request(&mut c));
 
     // Back up two pieces before we consume the request.
     let protocol = req.protocol;
@@ -161,6 +107,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
       for c in h.iter_mut() {
         *c = (*c).to_ascii_lowercase()
       }
+      // TODO: host should be parsed during request processing.
       let n = indexof(&h, b':');
       h.truncate(n);
       h
@@ -270,105 +217,9 @@ fn start_response(con: &mut Connection,
   Ok(())
 }
 
-fn is_http_ws(c: u8) -> bool {
-  c == b' ' || c == b'\t'
-}
-
-#[derive(Debug, PartialEq, Copy, Clone)]
-enum Method {
-  Get,
-  Head,
-}
-
-#[derive(Debug, PartialEq, Copy, Clone)]
-enum Protocol {
-  Http10,
-  Http11,
-}
-
 fn indexof<T: PartialEq>(slice: &[T], item: T) -> usize {
   for i in 0..slice.len() {
     if slice[i] == item { return i }
   }
   slice.len()
-}
-
-fn parse_start_line(line: Vec<u8>) -> Result<Request> {
-  let parts: Vec<_> = line.splitn(3, |b| *b == b' ').collect();
-  if parts.len() != 3 { return Err(HttpError::BadRequest) }
-
-  let method = match parts[0] {
-    b"GET" => Method::Get,
-    b"HEAD" => Method::Head,
-    _ => return Err(HttpError::BadMethod),
-  };
-  let (host, mut path) = {
-    let raw = parts[1];
-    // Distinguish an old-style path-only request from a HTTP/1.1-style URL
-    // request by checking for the presence of an HTTP scheme.
-    if raw.len() >= 7 && raw[..7].eq_ignore_ascii_case(b"http://") {
-      // Split the remainder at the first slash.  The bytes to the left are the
-      // host name; to the right, including the delimiter, the path.
-      let (host, path) = raw[7..].split_at(indexof(&raw[7..], b'/'));
-      let host = Vec::from_iter(host.into_iter().cloned());
-      let path = Vec::from_iter(path.into_iter().cloned());
-
-      if host.is_empty() {
-        // The client can totally specify an "empty host" using a URL of the
-        // form `http:///foo`.  We are not amused, and treat this as an absent
-        // host specification.
-        (None, path)
-      } else {
-        (Some(host), path) 
-      }
-    } else {
-      (None, Vec::from_iter(parts[1].into_iter().cloned()))
-    }
-  };
-  let protocol = match parts[2] {
-    b"HTTP/1.0" => Protocol::Http10,
-    b"HTTP/1.1" => Protocol::Http11,
-    _ => return Err(HttpError::BadProtocol),
-  };
-
-  // Slap an 'index.html' onto the end of any path that, from simple textual
-  // inspection, ends in a directory.
-  if path.is_empty() || path.ends_with(b"/") {
-    path.extend(b"index.html".into_iter().cloned());
-  }
-
-  Ok(Request {
-    method: method,
-    protocol: protocol,
-    host: host,
-    path: path,
-    if_modified_since: None,  // Filled in later.
-  }) 
-}
-
-#[derive(Debug)]
-struct Request {
-  method: Method,
-  protocol: Protocol,
-  host: Option<Vec<u8>>,
-  path: Vec<u8>,
-  if_modified_since: Option<Vec<u8>>,
-}
-
-fn starts_with_ignore_ascii_case(v: &[u8], prefix: &[u8]) -> bool {
-  if v.len() < prefix.len() {
-    false
-  } else {
-    v[..prefix.len()].eq_ignore_ascii_case(prefix)
-  }
-}
-
-#[test]
-fn test_starts_with_ignore_ascii_case() {
-  assert_eq!(true, starts_with_ignore_ascii_case(b"", b""));
-  assert_eq!(true, starts_with_ignore_ascii_case(b"foobar", b"foo"));
-  assert_eq!(true, starts_with_ignore_ascii_case(b"FOOBAR", b"foo"));
-
-  assert_eq!(false, starts_with_ignore_ascii_case(b"foo", b"foobar"));
-  assert_eq!(false, starts_with_ignore_ascii_case(b"", b"foobar"));
 }
