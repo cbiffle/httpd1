@@ -1,4 +1,8 @@
 use std::io;
+use std::fs;
+use std::env;
+use std::ffi::OsStr;
+
 use super::error::*;
 use super::timeout;
 use super::unix;
@@ -6,13 +10,18 @@ use super::unix;
 use std::io::BufRead;
 use std::io::Write;
 
+use std::os::unix::ffi::OsStrExt;
+
 const INPUT_BUF_BYTES: usize = 1024;
 const OUTPUT_BUF_BYTES: usize = 1024;
+const LOG_BUF_BYTES: usize = 256;
 const FILE_BUF_BYTES: usize = 1024;
+
 
 pub struct Connection {
   input: io::BufReader<timeout::SafeFile>,
   output: io::BufWriter<timeout::SafeFile>,
+  error: io::BufWriter<fs::File>,
   pub buf: Box<[u8; FILE_BUF_BYTES]>,
 }
 
@@ -23,6 +32,7 @@ impl Connection {
           timeout::SafeFile::new(unix::stdin())),
       output: io::BufWriter::with_capacity(OUTPUT_BUF_BYTES,
           timeout::SafeFile::new(unix::stdout())),
+      error: io::BufWriter::with_capacity(LOG_BUF_BYTES, unix::stderr()),
       buf: Box::new([0; FILE_BUF_BYTES]),
     }
   }
@@ -79,7 +89,36 @@ impl Connection {
   pub fn flush_output(&mut self) -> Result<()> {
     self.output.flush().map_err(|_| HttpError::ConnectionClosed)
   }
-    
+
+  pub fn log(&mut self, path: &[u8], msg: &[u8]) {
+    // We do not expect writes to the log to fail, and we can't easily
+    // handle them if they do, so we ignore the result.
+    macro_rules! ignore {
+      ($op: expr) => {
+        match $op {
+          Ok(_) => (),
+          Err(_) => ()
+        }
+      }
+    }
+
+    match env::var_os(OsStr::from_bytes(b"TCPREMOTEIP")) {
+      Some(remote) => ignore!(self.error.write_all((*remote).as_bytes())),
+      None => ignore!(self.error.write_all(b"0")),
+    }
+
+    ignore!(self.error.write_all(b" read "));
+    if path.len() > 100 {
+      ignore!(self.error.write_all(&path[..100]));
+      ignore!(self.error.write_all(b"..."))
+    } else {
+      ignore!(self.error.write_all(path))
+    }
+    ignore!(self.error.write_all(b": "));
+    ignore!(self.error.write_all(msg));
+    ignore!(self.error.write_all(b"\n"));
+    ignore!(self.error.flush());
+  }
 }
 
 #[cfg(test)]

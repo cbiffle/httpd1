@@ -8,6 +8,7 @@ use std::ffi;
 use std::ascii::AsciiExt;
 use std::os::unix::ffi::OsStringExt;
 use std::io::Read;
+use std::error::Error;
 
 pub mod unix;
 mod ascii;
@@ -80,7 +81,19 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
   let content_type = filetype::filetype(&file_path[..]);
 
   let file_path = ffi::OsString::from_vec(file_path);
-  let resource = try!(unix::safe_open(&file_path));
+  let resource = match unix::safe_open(&file_path) {
+    Ok(r) => {
+      let file_path = file_path.into_vec();
+      con.log(&file_path[..], b"success");
+      r
+    },
+
+    Err(e) => {
+      let file_path = file_path.into_vec();
+      con.log(&file_path[..], e.description().as_bytes());
+      return Err(HttpError::IoError(e))
+    },
+  };
 
   let now = time::get_time();
 
