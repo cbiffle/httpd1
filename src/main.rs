@@ -24,7 +24,9 @@ fn main() {
   with_env_var("GID", set_all_groups);
   with_env_var("UID", unix::setuid);
 
-  if httpd::serve().is_err() { process::exit(40) }
+  let remote = env::var("TCPREMOTEIP").unwrap_or_else(|_| "0".to_string());
+
+  if httpd::serve(remote).is_err() { process::exit(40) }
 }
 
 /// Paranoically extended version of setgid which also nukes the supplemental

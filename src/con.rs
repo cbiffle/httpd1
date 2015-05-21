@@ -1,7 +1,5 @@
 use std::io;
 use std::fs;
-use std::env;
-use std::ffi::OsStr;
 
 use super::error::*;
 use super::timeout;
@@ -22,17 +20,19 @@ pub struct Connection {
   input: io::BufReader<timeout::SafeFile>,
   output: io::BufWriter<timeout::SafeFile>,
   error: io::BufWriter<fs::File>,
+  remote: String,
   pub buf: Box<[u8; FILE_BUF_BYTES]>,
 }
 
 impl Connection {
-  pub fn new() -> Connection {
+  pub fn new(remote: String) -> Connection {
     Connection {
       input: io::BufReader::with_capacity(INPUT_BUF_BYTES,
           timeout::SafeFile::new(unix::stdin())),
       output: io::BufWriter::with_capacity(OUTPUT_BUF_BYTES,
           timeout::SafeFile::new(unix::stdout())),
       error: io::BufWriter::with_capacity(LOG_BUF_BYTES, unix::stderr()),
+      remote: remote,
       buf: Box::new([0; FILE_BUF_BYTES]),
     }
   }
@@ -102,11 +102,7 @@ impl Connection {
       }
     }
 
-    match env::var_os(OsStr::from_bytes(b"TCPREMOTEIP")) {
-      Some(remote) => ignore!(self.error.write_all((*remote).as_bytes())),
-      None => ignore!(self.error.write_all(b"0")),
-    }
-
+    ignore!(self.error.write_all(self.remote.as_bytes()));
     ignore!(self.error.write_all(b" read "));
     if path.len() > 100 {
       ignore!(self.error.write_all(&path[..100]));

@@ -25,8 +25,8 @@ use self::error::*;
 use self::con::Connection;  // interesting, wildcard doesn't work for this.
 use self::request::{Method, Protocol, Request};
 
-pub fn serve() -> Result<()> {
-  let mut c = Connection::new();
+pub fn serve(remote: String) -> Result<()> {
+  let mut c = Connection::new(remote);
 
   loop {  // Process requests.
     let req = match request::read(&mut c) {
