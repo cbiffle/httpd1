@@ -80,6 +80,9 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
 
   let content_type = filetype::filetype(&file_path[..]);
 
+  // We take this silly round-trip through OsString because we can't ensure
+  // that the path is valid UTF-8, so we can't hit str/String safely.
+  // Fortunately it's merely an elaborate typecast on Unix.
   let file_path = ffi::OsString::from_vec(file_path);
   let resource = match unix::safe_open(&file_path) {
     Ok(r) => {
