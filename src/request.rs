@@ -9,7 +9,10 @@ use super::ascii::AsciiPrefix;
 
 /// Accepts a request from the given `Connection` and returns its contents, or
 /// an error.
-#[cfg_attr(test, allow(dead_code))]
+///
+/// Errors may be returned *during* reception of the request.  While a
+/// `Connection` can theoretically be kept open after an error, I haven't done
+/// the legwork on this yet.
 pub fn take_request(c: &mut Connection) -> Result<Request> {
   // Take the first non-blank line as the Request-Line (5.1).
   // Our tolerance of multiple blank lines between requests on a connection, and
