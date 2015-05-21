@@ -13,7 +13,7 @@ use super::ascii::AsciiPrefix;
 /// Errors may be returned *during* reception of the request.  While a
 /// `Connection` can theoretically be kept open after an error, I haven't done
 /// the legwork on this yet.
-pub fn take_request(c: &mut Connection) -> Result<Request> {
+pub fn read(c: &mut Connection) -> Result<Request> {
   // Take the first non-blank line as the Request-Line (5.1).
   // Our tolerance of multiple blank lines between requests on a connection, and
   // blank lines before the initial request, mimics Publicfile, but does not

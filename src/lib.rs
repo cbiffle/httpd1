@@ -28,7 +28,7 @@ pub fn serve() -> Result<()> {
   let mut c = Connection::new();
 
   loop {  // Process requests.
-    let req = match request::take_request(&mut c) {
+    let req = match request::read(&mut c) {
       Ok(r) => r,
       Err(e) => return response::barf(&mut c, None, true, e),
     };
