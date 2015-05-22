@@ -1,13 +1,24 @@
+// Need libc to do unbuffered stdout/stdin :-/
 #![feature(libc)]
 extern crate libc;
-extern crate httpd;
 
 use std::env;
 use std::process;
 use std::io;
-use httpd::unix;
 
 use std::str::FromStr;
+
+mod ascii;
+mod con;
+mod error;
+mod filetype;
+mod path;
+mod percent;
+mod request;
+mod response;
+mod server;
+mod timeout;
+mod unix;
 
 /// Discards undesirable authority and calls through to the connection handler.
 /// In this case, "undesirable authority" means:
@@ -26,7 +37,7 @@ fn main() {
 
   let remote = env::var("TCPREMOTEIP").unwrap_or_else(|_| "0".to_string());
 
-  if httpd::serve(remote).is_err() { process::exit(40) }
+  if server::serve(remote).is_err() { process::exit(40) }
 }
 
 /// Paranoically extended version of setgid which also nukes the supplemental

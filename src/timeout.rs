@@ -1,5 +1,4 @@
 //! IO operations with timeout support.
-
 use std::io;
 use std::fs;
 use libc::time_t;

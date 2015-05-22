@@ -1,6 +1,3 @@
-// Need libc to do unbuffered stdout/stdin :-/
-#![feature(libc)]
-extern crate libc;
 extern crate time;
 
 use std::ffi;
@@ -10,20 +7,10 @@ use std::os::unix::ffi::OsStringExt;
 use std::io::Read;
 use std::error::Error;
 
-pub mod unix;
-mod ascii;
-mod con;
-mod error;
-mod filetype;
-mod path;
-mod percent;
-mod request;
-mod response;
-mod timeout;
-
-use self::error::*;
-use self::con::Connection;  // interesting, wildcard doesn't work for this.
-use self::request::{Method, Protocol, Request};
+use super::error::*;
+use super::con::Connection;  // interesting, wildcard doesn't work for this.
+use super::request::{Method, Protocol, Request};
+use super::{request,response,percent,path,filetype,unix};
 
 pub fn serve(remote: String) -> Result<()> {
   let mut c = Connection::new(remote);
