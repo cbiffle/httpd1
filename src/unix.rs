@@ -64,6 +64,7 @@ pub fn setgid(gid: libc::gid_t) -> io::Result<()> {
 
 /// Wraps POSIX pipe(2).  On success, returns a pair of Files that own the
 /// pipe's file descriptors.
+#[cfg(test)]
 pub fn pipe() -> io::Result<Pipe> {
   let mut fds = [0; 2];
   cvt(unsafe { libc::pipe(fds.as_mut_ptr()) })
@@ -73,6 +74,7 @@ pub fn pipe() -> io::Result<Pipe> {
     })
 }
 
+#[cfg(test)]
 pub struct Pipe {
   pub input: fs::File,
   pub output: fs::File,
