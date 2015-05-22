@@ -32,22 +32,19 @@ fn main() {
     if unix::chroot(root.as_bytes()).is_err() { process::exit(30) }
   }
 
-  with_env_var("GID", set_all_groups);
-  with_env_var("UID", unix::setuid);
+  with_env_var("GID", unix::setuid);
+  with_env_var("UID", |gid| {
+    try!(unix::setgroups(&[gid]));
+    unix::setgid(gid)
+  });
 
   let remote = env::var("TCPREMOTEIP").unwrap_or_else(|_| "0".to_string());
 
   if server::serve(remote).is_err() { process::exit(40) }
 }
 
-/// Paranoically extended version of setgid which also nukes the supplemental
-/// groups.  This is "unsafe" and "extern" because I can't figure out how to
-/// make env_to_libc, below, generic over safety and calling convention.
-fn set_all_groups(gid: libc::gid_t) -> io::Result<()> {
-  unix::setgroups(&[gid]).and_then(|_| unix::setgid(gid))
-}
-
-fn with_env_var<V: FromStr>(var: &str, f: fn(V) -> io::Result<()>) {
+fn with_env_var<V: FromStr, F>(var: &str, f: F)
+    where F: FnOnce(V) -> io::Result<()> {
   if let Ok(val_str) = env::var(var) {
     if let Ok(val) = FromStr::from_str(&val_str) {
       if f(val).is_err() { process::exit(30) }
