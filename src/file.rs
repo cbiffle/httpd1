@@ -3,8 +3,8 @@
 extern crate libc;
 extern crate time;
 
-use std::ffi::OsStr;
 use std::fs;
+use std::path;
 use std::io;
 
 use super::unix;
@@ -16,7 +16,8 @@ use super::unix;
 /// during the checks, as a useful side effect.
 ///
 /// Analog of djb's `file_open` from `file.c`.
-pub fn safe_open(path: &OsStr) -> io::Result<OpenFile> {
+pub fn safe_open<P>(path: P) -> io::Result<OpenFile>
+    where P: AsRef<path::Path> {
   let f = try!(fs::File::open(path));
   let s = try!(unix::fstat(&f));
 
