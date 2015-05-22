@@ -13,7 +13,7 @@ use super::error::*;
 use super::con::Connection;  // interesting, wildcard doesn't work for this.
 use super::request::{Method, Protocol, Request};
 use super::response::ContentEncoding;
-use super::{request,response,percent,path,filetype,unix};
+use super::{request,response,percent,path,filetype,file};
 
 pub fn serve(remote: String) -> Result<()> {
   let mut c = Connection::new(remote);
@@ -92,8 +92,8 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
 
 fn open_resource(con: &mut Connection,
                  path: &[u8],
-                 context: Option<&'static [u8]>) -> Result<unix::OpenFile> {
-  match unix::safe_open(ffi::OsStr::from_bytes(path)) {
+                 context: Option<&'static [u8]>) -> Result<file::OpenFile> {
+  match file::safe_open(ffi::OsStr::from_bytes(path)) {
     Ok(r) => {
       con.log(path, context, b"success");
       Ok(r)

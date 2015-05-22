@@ -7,7 +7,7 @@ use std::io::Read;
 
 use super::request::{Method, Protocol};
 use super::con::Connection;
-use super::unix::OpenFile;
+use super::file::OpenFile;
 use super::error::{HttpError, Result};
 
 pub enum ContentEncoding {

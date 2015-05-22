@@ -11,6 +11,7 @@ use std::str::FromStr;
 mod ascii;
 mod con;
 mod error;
+mod file;
 mod filetype;
 mod path;
 mod percent;

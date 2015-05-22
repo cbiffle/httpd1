@@ -3,7 +3,6 @@
 extern crate libc;
 extern crate time;
 
-use std::ffi::OsStr;
 use std::fs;
 use std::io;
 use std::mem;
@@ -30,42 +29,6 @@ fn cvt<T: Default + PartialOrd>(t: T) -> io::Result<T> {
   }
 }
 
-/// Opens a file for read after somewhat pedantically verifying its permissions.
-/// Returns the file, along with some of the metadata discovered during checks.
-///
-/// Analog of djb's `file_open` from `file.c`.  Performs essentially the same
-/// tests, but assumes that files are never opened for write.
-pub fn safe_open(path: &OsStr) -> io::Result<OpenFile> {
-  let f = try!(fs::File::open(path));
-  let s = try!(fstat(&f));
-
-  if (s.st_mode & 0o444) != 0o444 {
-    Err(io::Error::new(io::ErrorKind::PermissionDenied, "not ugo+_r"))
-  } else if (s.st_mode & 0o101) == 0o001 {
-    Err(io::Error::new(io::ErrorKind::PermissionDenied, "o+x but u-x"))
-  } else if (s.st_mode & libc::S_IFMT) != libc::S_IFREG {
-    Err(io::Error::new(io::ErrorKind::PermissionDenied, "not a regular file"))
-  } else {
-    Ok(OpenFile {
-      file: f,
-      mtime: time::Timespec { sec: s.st_mtime, nsec: 0 },
-      length: s.st_size as u64,
-    })
-  }
-}
-
-/// Result type for `safe_open`.
-pub struct OpenFile {
-  /// The opened file.
-  pub file: fs::File,
-  /// The file's modification time in seconds since the epoch, at the last time
-  /// we checked.
-  pub mtime: time::Timespec,
-  /// The file's length, at the last time we checked.  Note that this may change
-  /// at runtime; take care.
-  pub length: u64,
-}
-
 /// Bring in some features not exposed in Rust's libc crate.
 mod ffi {
   extern {
@@ -85,7 +48,7 @@ pub fn setgroups(groups: &[libc::gid_t]) -> io::Result<()> {
     .map(|_| ())
 }
 
-fn fstat(f: &fs::File) -> io::Result<libc::stat> {
+pub fn fstat(f: &fs::File) -> io::Result<libc::stat> {
   let fd = f.as_raw_fd();
   let mut s = unsafe { mem::zeroed() };
   cvt(unsafe { libc::fstat(fd, &mut s) }).map(|_| s)
