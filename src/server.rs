@@ -39,20 +39,28 @@ pub fn serve(remote: String) -> Result<()> {
 }
 
 fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
+  // The request may not have included a Host, but we need to use it to
+  // generate a file path.  Tolerate Host's absence for HTTP/1.0 requests
+  // by replacing it with the simulated host "0".
   let host = match req.host {
     None => match req.protocol {
+      Protocol::Http10 => vec![b'0'],
+
       // HTTP 1.1 requests must include a host, one way or another.
       Protocol::Http11 => return Err(HttpError::BadRequest),
-      // For HTTP/1.0 without a host, substitute the name "0".
-      Protocol::Http10 => vec![b'0'],
     },
     Some(mut h) => {
-      for c in h.iter_mut() {
-        *c = (*c).to_ascii_lowercase()
+      // If the client provided a host, we must normalize it for use as a
+      // directory name: downcase it and strip off the port, if any.
+      for i in 0..h.len() {
+        let c = h[i];
+        if c == b':' {
+          h.truncate(i);
+          break
+        } else {
+          h[i] = c.to_ascii_lowercase()
+        }
       }
-      // TODO: host should be parsed during request processing.
-      let n = indexof(&h, b':');
-      h.truncate(n);
       h
     },
   };
@@ -91,11 +99,4 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
 
   response::send(con, req.method, req.protocol, now,
                  req.if_modified_since, &content_type[..], resource)
-}
-
-fn indexof<T: PartialEq>(slice: &[T], item: T) -> usize {
-  for i in 0..slice.len() {
-    if slice[i] == item { return i }
-  }
-  slice.len()
 }
