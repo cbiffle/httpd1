@@ -1,0 +1,75 @@
+httpd1: abstract screaming
+==========================
+
+This is a static file server inspired by, and closely modeled after,
+djb's [Publicfile].  I mostly wrote it as a task with which to learn Rust, but
+there are also some things I'd like to change about Publicfile, and this seemed like a reasonable way to go about it.
+
+[Publicfile]: http://publicfile.org/
+
+
+Status
+======
+
+The server passes publicfile's tests with the deviations noted below.
+
+Unfinished Bits
+---------------
+
+My preferred flavor of Publicfile has [some patches applied], and I haven't
+finished support for either GZIP encoding or custom error pages.
+
+[some patches applied]: http://cliffle.com/article/2013/01/26/publicfile-patches/index.html
+
+Deliberate Deviations
+---------------------
+
+- Pre-standardization HTTP requests are rejected, and we use HTTP/1.0 messages
+  to do so.  This may break HTTP/0.9 clients.
+  - Note: it is not clear that HTTP/0.9 clients exist in the wild.
+  - Rationale: I decided that the additional complexity in supporting 25 years
+    of HTTP didn't have a significant marginal advantage over supporting 20
+    years.
+
+- `Last-Modified` dates are printed honestly, regardless of the file's age.
+  - Note: publicfile does not print times that are within 60 seconds of the
+    wall time.
+  - Rationale: I can't think of a reason to do this.  I suspect publicfile is
+    doing it to make test output more predictable?
+
+- Error messages are less informative to clients.
+  - Rationale: I expect people to use custom error pages.
+
+- Default extension-to-mimetype mapping is different.
+  - Rationale: in 2015, I am likely to need a mapping for `css`, and less
+    likely to need one for `dvi`.
+
+- Extension-to-mimetype translation craziness removed.
+  - Rationale: leaks server implementation details into the user interface;
+    some browsers freak out if the extension is wrong; envdir-based mime mapping
+    restores flexibility.
+
+- Code uses Rust's error handling facility instead of `exit`.
+  - Rationale: level of compiler support seems sufficient -- hard to forget to
+    check an error, destructors eliminate cleanup gotos, low cost for
+    propagating errors with results.
+
+- Server process does not shut down stdout and sleep for one second on error.
+  - Rationale: I am not sure why Publicfile does this.
+
+- Bogus percent escapes don't truncate the path or decode as nul.
+  - Rationale: seemed better to refuse the request.
+
+- Nul characters are translated to underscores, not newlines.
+  - Rationale: newlines?
+
+- Extra tokens in the request start line are not silently ignored.
+  - Rationale: seemed better to refuse the request.
+
+- Protocol validation is tighter; won't interpret arbitrary strings as HTTP/1.1.
+  - Rationale: I have to assume that this was for forward compatibility, but now
+    that we know what HTTP/2 looks like ... it won't help.
+
+- If-None-Match does not cause a barf.
+  - Rationale: Doing this makes it really hard to migrate off servers that use
+    etags.  I actually think publicfile's behavior is a misfeature.
