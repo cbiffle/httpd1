@@ -12,14 +12,8 @@ pub fn sanitize<I>(path: I) -> Vec<u8>
 
   for c in iter {
     match c {
-      0 => {
-        result.push(b'_')
-      },
-      b'/' => {
-        if result.last().cloned() != Some(b'/') {
-          result.push(c)
-        }
-      },
+      0 => result.push(b'_'),
+      b'/' => if result.last().cloned() != Some(b'/') { result.push(c) },
       b'.' => {
         let c = if result.last().cloned() == Some(b'/') { b':' }
                 else { c };
