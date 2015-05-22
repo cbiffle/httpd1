@@ -52,3 +52,21 @@ fn env_mapping(ext: &[u8]) -> Option<Vec<u8>> {
       .cloned());
   env::var_os(OsString::from_vec(key)).map(|s| s.into_vec())
 }
+
+#[cfg(test)]
+mod tests {
+  use super::from_path;
+
+  macro_rules! from_path_case {
+    ($name: ident, $input: expr, $output: expr) => {
+      #[test]
+      fn $name() {
+        assert_eq!($output, &from_path($input)[..])
+      }
+    };
+  }
+
+  from_path_case!(test_no_extension, b"foobar", b"text/plain");
+  from_path_case!(test_canned, b"foobar.css", b"text/css");
+  // Deliberately *not* exercising the complete canned mapping.
+}
