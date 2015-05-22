@@ -10,10 +10,15 @@ use super::con::Connection;
 use super::unix::OpenFile;
 use super::error::{HttpError, Result};
 
+pub enum ContentEncoding {
+  Gzip,
+}
+
 pub fn send(con: &mut Connection,
             method: Method,
             protocol: Protocol,
             now: time::Timespec,
+            encoding: Option<ContentEncoding>,
             if_modified_since: Option<Vec<u8>>,
             content_type: &[u8],
             resource: OpenFile)
@@ -38,6 +43,13 @@ pub fn send(con: &mut Connection,
   try!(con.write(b"Last-Modified: "));
   try!(con.write(mtime.as_bytes()));
   try!(con.write(b"\r\n"));
+
+  match encoding {
+    None => (),
+    Some(ContentEncoding::Gzip) => {
+      try!(con.write(b"Content-Encoding: gzip\r\n"));
+    },
+  }
 
   let send_content = method == Method::Get && !unmodified;
 

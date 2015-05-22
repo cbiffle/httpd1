@@ -25,7 +25,7 @@ Unfinished Bits
 ---------------
 
 My preferred flavor of Publicfile has [some patches applied], and I haven't
-finished support for either GZIP encoding or custom error pages.
+finished support for custom error pages.
 
 [some patches applied]: http://cliffle.com/article/2013/01/26/publicfile-patches/index.html
 

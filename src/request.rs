@@ -70,12 +70,25 @@ pub fn read(c: &mut Connection) -> Result<Request> {
               .filter(|b| !is_http_ws(*b)));
           if !new_host.is_empty() { req.host = Some(new_host) }
         }
-      }
-
-      if hdr.starts_with_ignore_ascii_case(b"if-modified-since") {
+      } else if hdr.starts_with_ignore_ascii_case(b"if-modified-since") {
         req.if_modified_since =
             Some(Vec::from_iter(hdr[18..].iter().cloned()
                                   .skip_while(|b| is_http_ws(*b))));
+      } else if hdr.starts_with_ignore_ascii_case(b"accept-encoding:") {
+        // TODO: our interpretation of this header's values are out of spec,
+        // but identical to publicfile's behavior.  We could get tripped up
+        // by encodings that mention gzip as a substring, or by clients
+        // trying to forbid gzip for some reason ("gzip;q=0" is equivalent
+        // to omitting "gzip", but nobody does this).
+        let mut substr = &hdr[16..];
+        while !substr.is_empty() {
+          if substr.starts_with_ignore_ascii_case(b"gzip") {
+            req.accept_gzip = true;
+            break
+          } else {
+            substr = &substr[1..]
+          }
+        }
       }
 
       // We've processed this header -- discard it.
@@ -163,6 +176,7 @@ fn parse_request_line(line: Vec<u8>) -> Result<Request> {
     host: host,
     path: path,
     if_modified_since: None,  // Filled in later.
+    accept_gzip: false,  // Filled in later.
   }) 
 }
 
@@ -173,6 +187,7 @@ pub struct Request {
   pub host: Option<Vec<u8>>,
   pub path: Vec<u8>,
   pub if_modified_since: Option<Vec<u8>>,
+  pub accept_gzip: bool,
 }
 
 

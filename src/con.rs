@@ -92,7 +92,10 @@ impl Connection {
     self.output.flush().map_err(|_| HttpError::ConnectionClosed)
   }
 
-  pub fn log(&mut self, path: &[u8], msg: &[u8]) {
+  pub fn log(&mut self,
+             path: &[u8],
+             context: Option<&'static [u8]>,
+             msg: &[u8]) {
     // We do not expect writes to the log to fail, and we can't easily
     // handle them if they do, so we ignore the result.
     macro_rules! ignore {
@@ -111,6 +114,11 @@ impl Connection {
       ignore!(self.error.write_all(b"..."))
     } else {
       ignore!(self.error.write_all(path))
+    }
+    if let Some(c) = context {
+      ignore!(self.error.write_all(b" ["));
+      ignore!(self.error.write_all(c));
+      ignore!(self.error.write_all(b"]"));
     }
     ignore!(self.error.write_all(b": "));
     ignore!(self.error.write_all(msg));

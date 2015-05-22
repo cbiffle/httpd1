@@ -12,6 +12,7 @@ use std::error::Error;
 use super::error::*;
 use super::con::Connection;  // interesting, wildcard doesn't work for this.
 use super::request::{Method, Protocol, Request};
+use super::response::ContentEncoding;
 use super::{request,response,percent,path,filetype,unix};
 
 pub fn serve(remote: String) -> Result<()> {
@@ -58,30 +59,48 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
   let mut path = req.path;
   try!(percent::unescape(&mut path));
 
-  let file_path = path::sanitize(
+  let mut file_path = path::sanitize(
     b"./".iter()
       .chain(host.iter())
       .chain(b"/".iter())
       .chain(path.iter())
       .cloned());
 
-  let content_type = filetype::from_path(&file_path[..]);
-  let resource = try!(open_resource(con, &file_path[..]));
   let now = time::get_time();
+  let content_type = filetype::from_path(&file_path[..]);
+  let mut resource = try!(open_resource(con, &file_path[..], None));
+  let mut encoding = None;
 
-  response::send(con, req.method, req.protocol, now,
+  // If that worked, see if there's *also* a GZIPped alternate with accessible
+  // permissions.
+  if req.accept_gzip {
+    file_path.extend(b".gz".iter().cloned());
+    if let Ok(alt) = open_resource(con, &file_path[..], Some(b"gzipped")) {
+      // It must be at least as recent as the primary, or we'll assume it's
+      // stale clutter and ignore it.
+      if alt.mtime >= resource.mtime {
+        resource = alt;
+        encoding = Some(ContentEncoding::Gzip)
+      }
+    }
+  }
+
+
+  response::send(con, req.method, req.protocol, now, encoding,
                  req.if_modified_since, &content_type[..], resource)
 }
 
-fn open_resource(con: &mut Connection, path: &[u8]) -> Result<unix::OpenFile> {
+fn open_resource(con: &mut Connection,
+                 path: &[u8],
+                 context: Option<&'static [u8]>) -> Result<unix::OpenFile> {
   match unix::safe_open(ffi::OsStr::from_bytes(path)) {
     Ok(r) => {
-      con.log(path, b"success");
+      con.log(path, context, b"success");
       Ok(r)
     },
 
     Err(e) => {
-      con.log(path, e.description().as_bytes());
+      con.log(path, context, e.description().as_bytes());
       Err(HttpError::IoError(e))
     },
   }
