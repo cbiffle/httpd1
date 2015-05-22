@@ -50,17 +50,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
       Protocol::Http11 => return Err(HttpError::BadRequest),
     },
     Some(mut h) => {
-      // If the client provided a host, we must normalize it for use as a
-      // directory name: downcase it and strip off the port, if any.
-      for i in 0..h.len() {
-        let c = h[i];
-        if c == b':' {
-          h.truncate(i);
-          break
-        } else {
-          h[i] = c.to_ascii_lowercase()
-        }
-      }
+      normalize_host(&mut h);
       h
     },
   };
@@ -99,4 +89,18 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
 
   response::send(con, req.method, req.protocol, now,
                  req.if_modified_since, &content_type[..], resource)
+}
+
+// If the client provided a host, we must normalize it for use as a directory
+// name: downcase it and strip off the port, if any.
+fn normalize_host(host: &mut Vec<u8>) {
+  for i in 0..host.len() {
+    let c = host[i];
+    if c == b':' {
+      host.truncate(i);
+      return
+    } else {
+      host[i] = c.to_ascii_lowercase()
+    }
+  }
 }
