@@ -1,3 +1,5 @@
+//! Operations on ASCII slices, in the vein of `std::ascii::AsciiExt`.
+
 use std::ascii::AsciiExt;
 
 pub trait AsciiPrefix {

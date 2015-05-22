@@ -1,3 +1,5 @@
+//! Operations on paths.
+
 use std::iter::IntoIterator;
 
 /// Sanitizes a path received from a client: replaces NULs, collapses duplicate

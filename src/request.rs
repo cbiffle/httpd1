@@ -1,3 +1,5 @@
+//! HTTP request support.
+
 extern crate time;
 
 use std::ascii::AsciiExt;

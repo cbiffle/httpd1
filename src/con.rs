@@ -1,3 +1,5 @@
+//! HTTP connection management
+
 use std::io;
 use std::fs;
 

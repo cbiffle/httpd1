@@ -1,3 +1,5 @@
+//! HTTP protocol errors
+
 use std::io;
 use std::result;
 

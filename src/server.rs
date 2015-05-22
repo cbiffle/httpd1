@@ -1,3 +1,5 @@
+//! The core HTTP server, which ties the other modules together.
+
 extern crate time;
 
 use std::ffi;

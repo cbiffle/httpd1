@@ -1,3 +1,5 @@
+//! Guessing the MIME type of files in inexpensive ways.
+
 use std::env;
 use std::ffi::OsString;
 

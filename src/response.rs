@@ -1,3 +1,5 @@
+//! HTTP response support.
+
 extern crate time;
 
 use std::io;

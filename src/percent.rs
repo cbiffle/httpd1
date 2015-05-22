@@ -1,3 +1,5 @@
+//! URL percent-encoding.
+
 use super::error::{HttpError, Result};
 
 /// Decodes URL percent-escaping, in-place.  Fails if the encoding is bad.
