@@ -1,17 +1,25 @@
 httpd1: abstract screaming
 ==========================
 
-This is a static file server inspired by, and closely modeled after,
-djb's [Publicfile].  I mostly wrote it as a task with which to learn Rust, but
-there are also some things I'd like to change about Publicfile, and this seemed like a reasonable way to go about it.
+**What:** This is a static file server inspired by, and closely modeled after,
+djb's [Publicfile].
+
+**Why:** Mostly, to learn [Rust].  Writing a workalike to a piece of code I
+already understood seemed safer than taking an open-ended problem.  That said,
+I've also been wanting an open source publicfile clone, so that I could add
+features.
 
 [Publicfile]: http://publicfile.org/
+[Rust]: http://www.rust-lang.org/
 
 
 Status
 ======
 
-The server passes publicfile's tests with the deviations noted below.
+I make no claims to this implementation being complete, secure, safe, etc.
+It's a quick hack.
+
+That said, the server passes publicfile's tests with the deviations noted below.
 
 Unfinished Bits
 ---------------
@@ -23,6 +31,13 @@ finished support for either GZIP encoding or custom error pages.
 
 Deliberate Deviations
 ---------------------
+
+- Small variations in header output order.
+  - Rationale: permitted under HTTP; I'm not trying to make the output
+    indistinguishable from publicfile's, just semantically equivalent.
+
+- No ftp server is provided.
+  - Rationale: FTP is not terribly popular these days.
 
 - Pre-standardization HTTP requests are rejected, and we use HTTP/1.0 messages
   to do so.  This may break HTTP/0.9 clients.
@@ -73,3 +88,11 @@ Deliberate Deviations
 - If-None-Match does not cause a barf.
   - Rationale: Doing this makes it really hard to migrate off servers that use
     etags.  I actually think publicfile's behavior is a misfeature.
+
+- If-Modified-Since token is taken from the *first* encountered header if
+  multiple copies appear.
+  - Note: This is a bit of a gray area in the standard, but since IMS is not
+    composed of comma-separated tokens, it's safe to assume that the header
+    cannot be meaningfully repeated.  Publicfile's "last header wins" behavior
+    is definitely a creative interpretation, not a required behavior.
+  - Rationale: implementation was easier.
