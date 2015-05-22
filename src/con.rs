@@ -140,18 +140,21 @@ mod tests {
 
   #[test]
   fn test_connection_readline() {
-    let (mut c, mut to_con, from_con) = {
+    let (mut c, mut to_con, from_con, con_err) = {
       let pipe_to_con = unix::pipe().unwrap();
       let pipe_from_con = unix::pipe().unwrap();
+      let error_from_con = unix::pipe().unwrap();
   
       let c = Connection {
         input: io::BufReader::new(timeout::SafeFile::new(pipe_to_con.input)),
         output: io::BufWriter::new(
             timeout::SafeFile::new(pipe_from_con.output)),
+        error: io::BufWriter::new(error_from_con.output),
+        remote: "REMOTE".to_string(),
         buf: Box::new([0; super::FILE_BUF_BYTES]),
       };
   
-      (c, pipe_to_con.output, pipe_from_con.input)
+      (c, pipe_to_con.output, pipe_from_con.input, error_from_con.input)
     };
   
     // Note: this test relies on buffering in the pipes.  Hoping for the best.
