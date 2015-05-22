@@ -97,12 +97,12 @@ impl Connection {
              context: Option<&'static [u8]>,
              msg: &[u8]) {
     // We do not expect writes to the log to fail, and we can't easily
-    // handle them if they do, so we ignore the result.
+    // handle them if they do, so we ignore the result and return.
     macro_rules! ignore {
       ($op: expr) => {
         match $op {
           Ok(_) => (),
-          Err(_) => ()
+          Err(_) => return ()
         }
       }
     }
