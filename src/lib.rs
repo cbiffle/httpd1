@@ -100,8 +100,8 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
 
   let now = time::get_time();
 
-  response::send(con, req.method, req.protocol, now, &content_type[..],
-                 resource)
+  response::send(con, req.method, req.protocol, now,
+                 req.if_modified_since, &content_type[..], resource)
 }
 
 fn indexof<T: PartialEq>(slice: &[T], item: T) -> usize {

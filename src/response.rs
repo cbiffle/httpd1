@@ -12,22 +12,36 @@ pub fn send(con: &mut Connection,
             method: Method,
             protocol: Protocol,
             now: time::Timespec,
+            if_modified_since: Option<Vec<u8>>,
             content_type: &[u8],
             resource: OpenFile)
             -> Result<()> {
-  try!(start_response(con, protocol, &now, b"200", b"OK"));
+  let mtime = format!("{}", time::at_utc(resource.mtime).rfc822());
+
+  let unmodified = if let Some(ref ims) = if_modified_since {
+    &ims[..] == mtime.as_bytes()
+  } else {
+    false
+  };
+
+  if unmodified {
+    try!(start_response(con, protocol, &now, b"304", b"not modified"))
+  } else {
+    try!(start_response(con, protocol, &now, b"200", b"OK"))
+  }
   try!(con.write(b"Content-Type: "));
   try!(con.write(content_type));
   try!(con.write(b"\r\n"));
 
-  let mtime = format!("{}", time::at_utc(resource.mtime).rfc822());
   try!(con.write(b"Last-Modified: "));
   try!(con.write(mtime.as_bytes()));
   try!(con.write(b"\r\n"));
 
+  let send_content = method == Method::Get && !unmodified;
+
   let r = match protocol {
-    Protocol::Http10 => send_unencoded(con, method, resource),
-    Protocol::Http11 => send_chunked(con, method, resource),
+    Protocol::Http10 => send_unencoded(con, send_content, resource),
+    Protocol::Http11 => send_chunked(con, send_content, resource),
   };
 
   try!(con.flush_output());
@@ -85,13 +99,13 @@ pub fn barf(con: &mut Connection,
 }
 
 fn send_unencoded(con: &mut Connection,
-                  method: Method,
+                  send_content: bool,
                   mut resource: OpenFile) -> Result<()> {
   try!(con.write(b"Content-Length: "));
   try!(con.write_to_string(resource.length));
   try!(con.write(b"\r\n\r\n"));
 
-  if method == Method::Get {
+  if send_content {
     loop {
       let count = try!(resource.file.read(&mut con.buf[..]));
       if count == 0 { break }
@@ -105,11 +119,11 @@ fn send_unencoded(con: &mut Connection,
 }
 
 fn send_chunked(con: &mut Connection,
-                method: Method,
+                send_content: bool,
                 mut resource: OpenFile) -> Result<()> {
   try!(con.write(b"Transfer-Encoding: chunked\r\n\r\n"));
 
-  if method == Method::Get {
+  if send_content {
     loop {
       let count = try!(resource.file.read(&mut con.buf[..]));
       try!(con.write_hex(count));
