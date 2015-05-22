@@ -6,6 +6,21 @@ use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 use std::iter::FromIterator;
 
+/// Takes a guess at a file's MIME type using its file extension.
+///
+/// The extension is the sequence of bytes after the last period, so we can't
+/// ascribe unique MIME types to things like `.tar.gz`.
+///
+/// For a file `foo.ext`, we'll first search for an environment variable called
+/// `CT_ext`.  If present, its contents will be returned as the MIME type.
+///
+/// If no such environment variable exists, a hardcoded mapping of common
+/// extensions will be consulted.
+///
+/// Either way, a new Vec containing the MIME type will be allocated and
+/// returned.  We could technically use static byte slices, since the contents
+/// of environment variables are in RAM with static duration on Unix, but Rust
+/// doesn't present them that way -- probably some Windows thing.
 pub fn from_path(file_path: &[u8]) -> Vec<u8> {
   match file_path.rsplitn(2, |b| *b == b'.').next() {
     Some(ext) => env_mapping(ext)
