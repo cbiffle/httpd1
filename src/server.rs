@@ -66,23 +66,25 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
       .cloned());
 
   let content_type = filetype::from_path(&file_path[..]);
-
-  let resource = match unix::safe_open(ffi::OsStr::from_bytes(&file_path[..])) {
-    Ok(r) => {
-      con.log(&file_path[..], b"success");
-      r
-    },
-
-    Err(e) => {
-      con.log(&file_path[..], e.description().as_bytes());
-      return Err(HttpError::IoError(e))
-    },
-  };
-
+  let resource = try!(open_resource(con, &file_path[..]));
   let now = time::get_time();
 
   response::send(con, req.method, req.protocol, now,
                  req.if_modified_since, &content_type[..], resource)
+}
+
+fn open_resource(con: &mut Connection, path: &[u8]) -> Result<unix::OpenFile> {
+  match unix::safe_open(ffi::OsStr::from_bytes(path)) {
+    Ok(r) => {
+      con.log(path, b"success");
+      Ok(r)
+    },
+
+    Err(e) => {
+      con.log(path, e.description().as_bytes());
+      Err(HttpError::IoError(e))
+    },
+  }
 }
 
 // If the client provided a host, we must normalize it for use as a directory
