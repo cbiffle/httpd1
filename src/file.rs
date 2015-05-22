@@ -16,6 +16,7 @@ use super::unix;
 /// during the checks, as a useful side effect.
 ///
 /// Analog of djb's `file_open` from `file.c`.
+#[cfg_attr(test, allow(dead_code))]  // Uses filesystem, hard to unit test.
 pub fn safe_open<P>(path: P) -> io::Result<OpenFile>
     where P: AsRef<path::Path> {
   let f = try!(fs::File::open(path));
