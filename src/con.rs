@@ -12,22 +12,27 @@ use std::io::Write;
 
 use std::os::unix::ffi::OsStrExt;
 
-const INPUT_BUF_BYTES: usize = 1024;
-const OUTPUT_BUF_BYTES: usize = 1024;
-const LOG_BUF_BYTES: usize = 256;
+// TODO: The way file bufs are currently handled is a hack.
 const FILE_BUF_BYTES: usize = 1024;
-
 
 pub struct Connection {
   input: io::BufReader<timeout::SafeFile>,
+  #[cfg_attr(test, allow(dead_code))]  // Tested in integration
   output: io::BufWriter<timeout::SafeFile>,
+  #[cfg_attr(test, allow(dead_code))]  // Tested in integration
   error: io::BufWriter<fs::File>,
+  #[cfg_attr(test, allow(dead_code))]  // Tested in integration
   remote: String,
   pub buf: Box<[u8; FILE_BUF_BYTES]>,
 }
 
 impl Connection {
+  #[cfg_attr(test, allow(dead_code))]  // Tested in integration
   pub fn new(remote: String) -> Connection {
+    const INPUT_BUF_BYTES: usize = 1024;
+    const OUTPUT_BUF_BYTES: usize = 1024;
+    const LOG_BUF_BYTES: usize = 256;
+
     Connection {
       input: io::BufReader::with_capacity(INPUT_BUF_BYTES,
           timeout::SafeFile::new(unix::stdin())),
@@ -66,6 +71,7 @@ impl Connection {
     }
   }
 
+  #[cfg_attr(test, allow(dead_code))]  // Trivial, tested in integration
   pub fn write(&mut self, data: &[u8]) -> Result<()> {
     // Don't use the default conversion from io::Error here -- failures on
     // write are the client's fault and can't typically be reported, so it's
@@ -73,24 +79,30 @@ impl Connection {
     self.output.write_all(data).map_err(|_| HttpError::ConnectionClosed)
   }
 
+  #[cfg_attr(test, allow(dead_code))]  // Trivial
   pub fn write_to_string<T: ToString>(&mut self, value: T) -> Result<()> {
+    // TODO: this allocates. :-(
     self.write(value.to_string().as_bytes())
   }
 
+  #[cfg_attr(test, allow(dead_code))]  // Tested in integration
   pub fn write_hex(&mut self, value: usize) -> Result<()> {
-    let s = format!("{:x}", value);
-    self.write(s.as_bytes())
+    // TODO: this allocates. :-(
+    self.write(format!("{:x}", value).as_bytes())
   }
 
+  #[cfg_attr(test, allow(dead_code))]  // Tested in integration
   pub fn write_buf(&mut self, count: usize) -> Result<()> {
     self.output.write_all(&self.buf[..count])
         .map_err(|_| HttpError::ConnectionClosed)
   }
 
+  #[cfg_attr(test, allow(dead_code))]  // Tested in integration
   pub fn flush_output(&mut self) -> Result<()> {
     self.output.flush().map_err(|_| HttpError::ConnectionClosed)
   }
 
+  #[cfg_attr(test, allow(dead_code))]  // Tested in integration
   pub fn log(&mut self,
              path: &[u8],
              context: Option<&'static [u8]>,
@@ -129,6 +141,7 @@ impl Connection {
 #[cfg(test)]
 mod tests {
   use std::io;
+  use std::fs;
   use std::mem;
   use super::*;
   use super::super::unix;
@@ -137,26 +150,27 @@ mod tests {
 
   use std::io::Write;
 
+  // Note: this test relies on buffering in the pipes.  Hoping for the best.
+  fn make_piped_connection() -> (Connection, fs::File, fs::File, fs::File) {
+    let pipe_to_con = unix::pipe().unwrap();
+    let pipe_from_con = unix::pipe().unwrap();
+    let error_from_con = unix::pipe().unwrap();
+
+    let c = Connection {
+      input: io::BufReader::new(timeout::SafeFile::new(pipe_to_con.input)),
+      output: io::BufWriter::new(
+          timeout::SafeFile::new(pipe_from_con.output)),
+      error: io::BufWriter::new(error_from_con.output),
+      remote: "REMOTE".to_string(),
+      buf: Box::new([0; super::FILE_BUF_BYTES]),
+    };
+
+    (c, pipe_to_con.output, pipe_from_con.input, error_from_con.input)
+  }
+
   #[test]
   fn test_connection_readline() {
-    let (mut c, mut to_con, from_con, con_err) = {
-      let pipe_to_con = unix::pipe().unwrap();
-      let pipe_from_con = unix::pipe().unwrap();
-      let error_from_con = unix::pipe().unwrap();
-  
-      let c = Connection {
-        input: io::BufReader::new(timeout::SafeFile::new(pipe_to_con.input)),
-        output: io::BufWriter::new(
-            timeout::SafeFile::new(pipe_from_con.output)),
-        error: io::BufWriter::new(error_from_con.output),
-        remote: "REMOTE".to_string(),
-        buf: Box::new([0; super::FILE_BUF_BYTES]),
-      };
-  
-      (c, pipe_to_con.output, pipe_from_con.input, error_from_con.input)
-    };
-  
-    // Note: this test relies on buffering in the pipes.  Hoping for the best.
+    let (mut c, mut to_con, _, _) = make_piped_connection();
   
     to_con.write_all(b"\r\n").unwrap();
     assert_eq!(b"", &c.readline().unwrap()[..]);
@@ -178,7 +192,5 @@ mod tests {
       Some(_) => panic!("Unexpected error from readline() at stream end"),
       _ => panic!("readline() must fail at stream end"),
     };
-
-    mem::drop(from_con);  // suppress unused variable warning ;-)
   }
 }
