@@ -74,8 +74,7 @@ impl Connection {
   }
 
   pub fn write_to_string<T: ToString>(&mut self, value: T) -> Result<()> {
-    let s = value.to_string();
-    self.write(s.as_bytes())
+    self.write(value.to_string().as_bytes())
   }
 
   pub fn write_hex(&mut self, value: usize) -> Result<()> {
