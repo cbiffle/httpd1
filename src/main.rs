@@ -32,8 +32,8 @@ fn main() {
     if unix::chroot(root.as_bytes()).is_err() { process::exit(30) }
   }
 
-  with_env_var("GID", unix::setuid);
-  with_env_var("UID", |gid| {
+  with_env_var("UID", unix::setuid);
+  with_env_var("GID", |gid| {
     try!(unix::setgroups(&[gid]));
     unix::setgid(gid)
   });
