@@ -5,7 +5,7 @@ extern crate time;
 use std::ffi;
 
 use std::ascii::AsciiExt;
-use std::os::unix::ffi::OsStringExt;
+use std::os::unix::ffi::OsStrExt;
 use std::io::Read;
 use std::error::Error;
 
@@ -67,19 +67,13 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
 
   let content_type = filetype::from_path(&file_path[..]);
 
-  // We take this silly round-trip through OsString because we can't ensure
-  // that the path is valid UTF-8, so we can't hit str/String safely.
-  // Fortunately it's merely an elaborate typecast on Unix.
-  let file_path = ffi::OsString::from_vec(file_path);
-  let resource = match unix::safe_open(&file_path) {
+  let resource = match unix::safe_open(ffi::OsStr::from_bytes(&file_path[..])) {
     Ok(r) => {
-      let file_path = file_path.into_vec();
       con.log(&file_path[..], b"success");
       r
     },
 
     Err(e) => {
-      let file_path = file_path.into_vec();
       con.log(&file_path[..], e.description().as_bytes());
       return Err(HttpError::IoError(e))
     },
