@@ -1,5 +1,11 @@
 //! HTTP connection management
 
+// We only unit test small parts of this module, since the rest is tested in
+// integration.  To avoid warnings during `cargo test`, we suppress dead code
+// throughout the module and re-enable it in the tests, below, to catch dead
+// test code.
+#![cfg_attr(test, allow(dead_code))]
+
 use std::io;
 use std::fs;
 
@@ -17,17 +23,13 @@ const FILE_BUF_BYTES: usize = 1024;
 
 pub struct Connection {
   input: io::BufReader<timeout::SafeFile>,
-  #[cfg_attr(test, allow(dead_code))]  // Tested in integration
   output: io::BufWriter<timeout::SafeFile>,
-  #[cfg_attr(test, allow(dead_code))]  // Tested in integration
   error: io::BufWriter<fs::File>,
-  #[cfg_attr(test, allow(dead_code))]  // Tested in integration
   remote: String,
   pub buf: Box<[u8; FILE_BUF_BYTES]>,
 }
 
 impl Connection {
-  #[cfg_attr(test, allow(dead_code))]  // Tested in integration
   pub fn new(remote: String) -> Connection {
     const INPUT_BUF_BYTES: usize = 1024;
     const OUTPUT_BUF_BYTES: usize = 1024;
@@ -71,7 +73,6 @@ impl Connection {
     }
   }
 
-  #[cfg_attr(test, allow(dead_code))]  // Trivial, tested in integration
   pub fn write(&mut self, data: &[u8]) -> Result<()> {
     // Don't use the default conversion from io::Error here -- failures on
     // write are the client's fault and can't typically be reported, so it's
@@ -79,30 +80,25 @@ impl Connection {
     self.output.write_all(data).map_err(|_| HttpError::ConnectionClosed)
   }
 
-  #[cfg_attr(test, allow(dead_code))]  // Trivial
   pub fn write_to_string<T: ToString>(&mut self, value: T) -> Result<()> {
     // TODO: this allocates. :-(
     self.write(value.to_string().as_bytes())
   }
 
-  #[cfg_attr(test, allow(dead_code))]  // Tested in integration
   pub fn write_hex(&mut self, value: usize) -> Result<()> {
     // TODO: this allocates. :-(
     self.write(format!("{:x}", value).as_bytes())
   }
 
-  #[cfg_attr(test, allow(dead_code))]  // Tested in integration
   pub fn write_buf(&mut self, count: usize) -> Result<()> {
     self.output.write_all(&self.buf[..count])
         .map_err(|_| HttpError::ConnectionClosed)
   }
 
-  #[cfg_attr(test, allow(dead_code))]  // Tested in integration
   pub fn flush_output(&mut self) -> Result<()> {
     self.output.flush().map_err(|_| HttpError::ConnectionClosed)
   }
 
-  #[cfg_attr(test, allow(dead_code))]  // Tested in integration
   pub fn log(&mut self,
              path: &[u8],
              context: Option<&'static [u8]>,
@@ -139,6 +135,7 @@ impl Connection {
 }
 
 #[cfg(test)]
+#[warn(dead_code)]
 mod tests {
   use std::io;
   use std::fs;
