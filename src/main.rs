@@ -25,6 +25,7 @@ mod unix;
 /// In this case, "undesirable authority" means:
 /// - The global filesystem root (shed via `chroot`)
 /// - The calling uid/gid and supplementary groups.
+#[cfg_attr(test, allow(dead_code))]
 fn main() {
   // Only chroot if a root directory is provided.  This allows for testing (most
   // of the) the daemon as an unprivileged user.

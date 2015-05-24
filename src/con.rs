@@ -1,11 +1,5 @@
 //! HTTP connection management
 
-// We only unit test small parts of this module, since the rest is tested in
-// integration.  To avoid warnings during `cargo test`, we suppress dead code
-// throughout the module and re-enable it in the tests, below, to catch dead
-// test code.
-#![cfg_attr(test, allow(dead_code))]
-
 use std::io;
 use std::fs;
 
@@ -135,7 +129,6 @@ impl Connection {
 }
 
 #[cfg(test)]
-#[warn(dead_code)]
 mod tests {
   use std::io;
   use std::fs;
