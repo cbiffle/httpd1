@@ -80,7 +80,11 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
       // It must be at least as recent as the primary, or we'll assume it's
       // stale clutter and ignore it.
       if alt.mtime >= resource.mtime {
-        resource = alt;
+        // Rewrite the file and length, but leave everything else (particularly
+        // mtime).
+        con.log_other(b"note: serving gzipped");
+        resource.file = alt.file;
+        resource.length = alt.length;
         encoding = Some(ContentEncoding::Gzip)
       }
     }
