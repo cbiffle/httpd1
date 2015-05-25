@@ -2,7 +2,6 @@
 
 extern crate time;
 
-use std::io;
 use std::io::Read;
 
 use super::request::{Method, Protocol};
@@ -72,12 +71,7 @@ pub fn barf(con: &mut Connection,
             error: HttpError)
             -> Result<()> {
   let (code, message): (&[u8], &[u8]) = match error {
-    HttpError::IoError(ioe) => match ioe.kind() {
-      io::ErrorKind::NotFound
-        | io::ErrorKind::PermissionDenied
-          => (b"404", b"not found"),
-      _ => (b"500", b"error"),
-    },
+    HttpError::IoError(_) =>(b"500", b"error"),
 
     HttpError::ConnectionClosed => return Ok(()),
 
@@ -86,6 +80,7 @@ pub fn barf(con: &mut Connection,
     HttpError::BadProtocol => (b"505", b"HTTP version not supported"),
     HttpError::SpanishInquisition => (b"417", b"expectations not supported"),
     HttpError::PreconditionFailed => (b"412", b"bad precondition"),
+    HttpError::NotFound => (b"404", b"not found"),
     
     HttpError::NotImplemented(m) => (b"501", m),
   };

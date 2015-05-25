@@ -27,6 +27,9 @@ pub enum HttpError {
   /// The client has tried to use an aspect of HTTP that we don't implement,
   /// but which doesn't have a specific HTTP status code.
   NotImplemented(&'static [u8]),
+  /// The requested resource was not found (404), or we're acting like it wasn't
+  /// due to permissions mismatch.
+  NotFound,
   /// For convenience, `io::Error`s can be propagated as `HttpError`s.
   /// We treat them as internal server errors; any *expected* I/O errors should
   /// be coerced into another error type.

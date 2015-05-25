@@ -2,6 +2,7 @@
 
 extern crate time;
 
+use std::io;
 use std::ffi;
 
 use std::ascii::AsciiExt;
@@ -100,8 +101,17 @@ fn open_resource(con: &mut Connection,
     },
 
     Err(e) => {
-      con.log(path, context, e.description().as_bytes());
-      Err(HttpError::IoError(e))
+      Err(match e.kind() {
+        io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied => {
+          // TODO: would like to distinguish the various access errors here.
+          con.log(path, context, b"not found");
+          HttpError::NotFound
+        },
+        _ => {
+          con.log(path, context, e.description().as_bytes());
+          HttpError::IoError(e)
+        },
+      })
     },
   }
 }
