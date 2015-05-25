@@ -31,6 +31,7 @@ pub fn send(con: &mut Connection,
   };
 
   if unmodified {
+    con.log_other(b"note: not modified");
     try!(start_response(con, protocol, &now, b"304", b"not modified"))
   } else {
     try!(start_response(con, protocol, &now, b"200", b"OK"))

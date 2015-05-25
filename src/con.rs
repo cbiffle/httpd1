@@ -126,6 +126,25 @@ impl Connection {
     ignore!(self.error.write_all(b"\n"));
     ignore!(self.error.flush());
   }
+
+  pub fn log_other(&mut self, message: &[u8]) {
+    // We do not expect writes to the log to fail, and we can't easily
+    // handle them if they do, so we ignore the result and return.
+    macro_rules! ignore {
+      ($op: expr) => {
+        match $op {
+          Ok(_) => (),
+          Err(_) => return ()
+        }
+      }
+    }
+
+    ignore!(self.error.write_all(self.remote.as_bytes()));
+    ignore!(self.error.write_all(b" "));
+    ignore!(self.error.write_all(message));
+    ignore!(self.error.write_all(b"\n"));
+    ignore!(self.error.flush());
+  }
 }
 
 #[cfg(test)]
