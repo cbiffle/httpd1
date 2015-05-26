@@ -5,9 +5,9 @@ extern crate time;
 
 use std::fs;
 use std::path;
-use std::io;
 
 use super::unix;
+use super::error;
 
 /// Opens a file for read, but returns it only if its permissions and mode match
 /// some seriously pedantic checks.  Otherwise, the file is immediately closed.
@@ -16,17 +16,17 @@ use super::unix;
 /// during the checks, as a useful side effect.
 ///
 /// Analog of djb's `file_open` from `file.c`.
-pub fn safe_open<P>(path: P) -> io::Result<OpenFile>
+pub fn safe_open<P>(path: P) -> error::Result<OpenFile>
     where P: AsRef<path::Path> {
   let f = try!(fs::File::open(path));
   let s = try!(unix::fstat(&f));
 
   if (s.st_mode & 0o444) != 0o444 {
-    Err(io::Error::new(io::ErrorKind::PermissionDenied, "not ugo+_r"))
+    Err(error::HttpError::NotFound(b"not ugo+r"))
   } else if (s.st_mode & 0o101) == 0o001 {
-    Err(io::Error::new(io::ErrorKind::PermissionDenied, "o+x but u-x"))
+    Err(error::HttpError::NotFound(b"o+x but u-x"))
   } else if (s.st_mode & libc::S_IFMT) != libc::S_IFREG {
-    Err(io::Error::new(io::ErrorKind::PermissionDenied, "not a regular file"))
+    Err(error::HttpError::NotFound(b"not a regular file"))
   } else {
     Ok(OpenFile {
       file: f,

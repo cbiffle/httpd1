@@ -2,13 +2,11 @@
 
 extern crate time;
 
-use std::io;
 use std::ffi;
 
 use std::ascii::AsciiExt;
 use std::os::unix::ffi::OsStrExt;
 use std::io::Read;
-use std::error::Error;
 
 use super::error::*;
 use super::con::Connection;  // interesting, wildcard doesn't work for this.
@@ -98,26 +96,21 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
 fn open_resource(con: &mut Connection,
                  path: &[u8],
                  context: Option<&'static [u8]>) -> Result<file::OpenFile> {
-  match file::safe_open(ffi::OsStr::from_bytes(path)) {
-    Ok(r) => {
+  let result = file::safe_open(ffi::OsStr::from_bytes(path));
+
+  match result {
+    Ok(_) => {
       con.log(path, context, b"success");
-      Ok(r)
     },
 
-    Err(e) => {
-      Err(match e.kind() {
-        io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied => {
-          // TODO: would like to distinguish the various access errors here.
-          con.log(path, context, b"not found");
-          HttpError::NotFound
-        },
-        _ => {
-          con.log(path, context, e.description().as_bytes());
-          HttpError::IoError(e)
-        },
-      })
+    Err(ref e) => {
+      if let Some(message) = e.log_message() {
+        con.log(path, context, message);
+      }
     },
   }
+
+  result
 }
 
 // If the client provided a host, we must normalize it for use as a directory

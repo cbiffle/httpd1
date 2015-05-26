@@ -71,19 +71,9 @@ pub fn barf(con: &mut Connection,
             send_content: bool,
             error: HttpError)
             -> Result<()> {
-  let (code, message): (&[u8], &[u8]) = match error {
-    HttpError::IoError(_) =>(b"500", b"error"),
-
-    HttpError::ConnectionClosed => return Ok(()),
-
-    HttpError::BadMethod => (b"501", b"method not implemented"),
-    HttpError::BadRequest => (b"400", b"bad request"),
-    HttpError::BadProtocol => (b"505", b"HTTP version not supported"),
-    HttpError::SpanishInquisition => (b"417", b"expectations not supported"),
-    HttpError::PreconditionFailed => (b"412", b"bad precondition"),
-    HttpError::NotFound => (b"404", b"not found"),
-    
-    HttpError::NotImplemented(m) => (b"501", m),
+  let (code, message) = match error.status() {
+    None => return Ok(()),
+    Some(pair) => pair,
   };
 
   let now = time::get_time();
