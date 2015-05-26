@@ -98,6 +98,36 @@ pub fn barf(con: &mut Connection,
   con.flush_output()
 }
 
+/// Sends a permanent redirect to the client.  The connection stays open.
+pub fn redirect(con: &mut Connection,
+                protocol: Protocol,
+                send_content: bool,
+                location: &[u8])
+                -> Result<()> {
+  let body = b"<html><body>moved permanently</body></html>";
+
+  let now = time::get_time();
+  try!(start_response(con, protocol, &now, b"301", b"moved permanently"));
+  try!(con.write(b"Content-Length: "));
+  try!(con.write_to_string(body.len()));
+  try!(con.write(b"\r\nLocation: "));
+  try!(con.write(location));
+  try!(con.write(b"\r\n"));
+
+  try!(con.write(b"Content-Type: text/html\r\n\r\n"));
+
+  if send_content {
+    try!(con.write(body));
+  }
+
+  try!(con.flush_output());
+
+  match protocol {
+    Protocol::Http10 => Err(HttpError::ConnectionClosed),
+    Protocol::Http11 => Ok(()),
+  }
+}
+
 fn send_unencoded(con: &mut Connection,
                   send_content: bool,
                   mut resource: OpenFile) -> Result<()> {

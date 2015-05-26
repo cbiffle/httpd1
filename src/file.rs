@@ -16,7 +16,7 @@ use super::error;
 /// during the checks, as a useful side effect.
 ///
 /// Analog of djb's `file_open` from `file.c`.
-pub fn safe_open<P>(path: P) -> error::Result<OpenFile>
+pub fn safe_open<P>(path: P) -> error::Result<FileOrDir>
     where P: AsRef<path::Path> {
   let f = try!(fs::File::open(path));
   let s = try!(unix::fstat(&f));
@@ -26,14 +26,23 @@ pub fn safe_open<P>(path: P) -> error::Result<OpenFile>
   } else if (s.st_mode & 0o101) == 0o001 {
     Err(error::HttpError::NotFound(b"o+x but u-x"))
   } else if (s.st_mode & libc::S_IFMT) != libc::S_IFREG {
-    Err(error::HttpError::NotFound(b"not a regular file"))
+    if (s.st_mode & libc::S_IFMT) == libc::S_IFDIR {
+      Ok(FileOrDir::Dir)
+    } else {
+      Err(error::HttpError::NotFound(b"not a regular file"))
+    }
   } else {
-    Ok(OpenFile {
+    Ok(FileOrDir::File(OpenFile {
       file: f,
       mtime: time::Timespec { sec: s.st_mtime, nsec: 0 },
       length: s.st_size as u64,
-    })
+    }))
   }
+}
+
+pub enum FileOrDir {
+  File(OpenFile),
+  Dir,
 }
 
 /// Result type for `safe_open`.

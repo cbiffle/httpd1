@@ -49,15 +49,21 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
       // HTTP 1.1 requests must include a host, one way or another.
       Protocol::Http11 => return Err(HttpError::BadRequest),
     },
-    Some(mut h) => {
+    Some(ref h) => {
+      // TODO: we're copying this to preserve the bytes sent by the client
+      // again.
+      let mut h = h.clone();
       normalize_host(&mut h);
       h
     },
   };
 
-  let mut path = req.path;
+  // TODO: doing the percent escaping in-place is seeming less snazzy now that
+  // we're having to copy the input path.
+  let mut path = req.path.clone();
   try!(percent::unescape(&mut path));
 
+  // TODO: probably better to percent-escape into this buffer.
   let mut file_path = path::sanitize(
     b"./".iter()
       .chain(host.iter())
@@ -67,40 +73,61 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
 
   let now = time::get_time();
   let content_type = filetype::from_path(&file_path[..]);
-  let mut resource = try!(open_resource(con, &file_path[..], None));
-  let mut encoding = None;
-
-  // If that worked, see if there's *also* a GZIPped alternate with accessible
-  // permissions.
-  if req.accept_gzip {
-    file_path.extend(b".gz".iter().cloned());
-    if let Ok(alt) = open_resource(con, &file_path[..], Some(b"gzipped")) {
-      // It must be at least as recent as the primary, or we'll assume it's
-      // stale clutter and ignore it.
-      if alt.mtime >= resource.mtime {
-        // Rewrite the file and length, but leave everything else (particularly
-        // mtime).
-        con.log_other(b"note: serving gzipped");
-        resource.file = alt.file;
-        resource.length = alt.length;
-        encoding = Some(ContentEncoding::Gzip)
+  if let file::FileOrDir::File(mut resource) =
+      try!(open_resource(con, &file_path[..], None)) {
+    let mut encoding = None;
+  
+    // If that worked, see if there's *also* a GZIPped alternate with accessible
+    // permissions.
+    if req.accept_gzip {
+      file_path.extend(b".gz".iter().cloned());
+      if let Ok(file::FileOrDir::File(alt)) =
+          open_resource(con, &file_path[..], Some(b"gzipped")) {
+        // It must be at least as recent as the primary, or we'll assume it's
+        // stale clutter and ignore it.
+        if alt.mtime >= resource.mtime {
+          // Rewrite the file and length, but leave everything else
+          // (particularly mtime).
+          con.log_other(b"note: serving gzipped");
+          resource.file = alt.file;
+          resource.length = alt.length;
+          encoding = Some(ContentEncoding::Gzip)
+        }
       }
     }
+  
+    response::send(con, req.method, req.protocol, now, encoding,
+                   req.if_modified_since, &content_type[..], resource)
+  } else {
+    // It's a dir.
+    if let Some(ref orig_host) = req.host {
+      let url: Vec<_> = b"http://".iter()
+                          .chain(orig_host.iter())
+                          .chain(req.path.iter())
+                          .chain(b"/".iter())
+                          .cloned()
+                          .collect();
+
+      return response::redirect(con, req.protocol, req.method == Method::Get,
+                                &url[..])
+    } else {
+      Err(HttpError::NotFound(b"cannot redirect")) 
+    }
   }
-
-
-  response::send(con, req.method, req.protocol, now, encoding,
-                 req.if_modified_since, &content_type[..], resource)
 }
 
 fn open_resource(con: &mut Connection,
                  path: &[u8],
-                 context: Option<&'static [u8]>) -> Result<file::OpenFile> {
+                 context: Option<&'static [u8]>) -> Result<file::FileOrDir> {
   let result = file::safe_open(ffi::OsStr::from_bytes(path));
 
   match result {
-    Ok(_) => {
+    Ok(file::FileOrDir::File(_)) => {
       con.log(path, context, b"success");
+    },
+
+    Ok(file::FileOrDir::Dir) => {
+      con.log(path, context, b"directory redirect");
     },
 
     Err(ref e) => {
