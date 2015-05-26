@@ -53,11 +53,10 @@ impl Connection {
     match try!(self.input.read_until(b'\n', &mut line)) {
       0 => return Err(HttpError::ConnectionClosed),
       _ => {
-        let len = line.len();
         if line.last().cloned() == Some(b'\n') {
           // We actually found our delimiter.
-          line.truncate(len - 1);
-          if line.last().cloned() == Some(b'\r') { line.truncate(len - 2) }
+          line.pop();
+          if line.last().cloned() == Some(b'\r') { line.pop(); }
           return Ok(line)
         } else {
           // The stream ended.
