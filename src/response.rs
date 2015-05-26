@@ -2,7 +2,8 @@
 
 extern crate time;
 
-use std::io::Read;
+use std::io;
+use std::io::BufRead;
 
 use super::request::{Method, Protocol};
 use super::con::Connection;
@@ -130,16 +131,21 @@ pub fn redirect(con: &mut Connection,
 
 fn send_unencoded(con: &mut Connection,
                   send_content: bool,
-                  mut resource: OpenFile) -> Result<()> {
+                  resource: OpenFile) -> Result<()> {
   try!(con.write(b"Content-Length: "));
   try!(con.write_to_string(resource.length));
   try!(con.write(b"\r\n\r\n"));
 
   if send_content {
+    let mut input = io::BufReader::with_capacity(1024, resource.file);
     loop {
-      let count = try!(resource.file.read(&mut con.buf[..]));
-      if count == 0 { break }
-      try!(con.write_buf(count))
+      let count = {
+        let chunk = try!(input.fill_buf());
+        if chunk.is_empty() { break }
+        try!(con.write(chunk));
+        chunk.len()
+      };
+      input.consume(count);
     }
   }
   
@@ -150,18 +156,24 @@ fn send_unencoded(con: &mut Connection,
 
 fn send_chunked(con: &mut Connection,
                 send_content: bool,
-                mut resource: OpenFile) -> Result<()> {
+                resource: OpenFile) -> Result<()> {
   try!(con.write(b"Transfer-Encoding: chunked\r\n\r\n"));
 
   if send_content {
+    let mut input = io::BufReader::with_capacity(1024, resource.file);
     loop {
-      let count = try!(resource.file.read(&mut con.buf[..]));
-      try!(con.write_hex(count));
-      try!(con.write(b"\r\n"));
-      try!(con.write_buf(count));
-      try!(con.write(b"\r\n"));
+      let count = {
+        let chunk = try!(input.fill_buf());
+        try!(con.write_hex(chunk.len()));
+        try!(con.write(b"\r\n"));
+        try!(con.write(chunk));
+        try!(con.write(b"\r\n"));
 
+        chunk.len()
+      };
       if count == 0 { break }  // End of transfer.
+
+      input.consume(count)
     }
   }
 

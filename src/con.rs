@@ -12,15 +12,11 @@ use std::io::Write;
 
 use std::os::unix::ffi::OsStrExt;
 
-// TODO: The way file bufs are currently handled is a hack.
-const FILE_BUF_BYTES: usize = 1024;
-
 pub struct Connection {
   input: io::BufReader<timeout::SafeFile>,
   output: io::BufWriter<timeout::SafeFile>,
   error: io::BufWriter<fs::File>,
   remote: String,
-  pub buf: Box<[u8; FILE_BUF_BYTES]>,
 }
 
 impl Connection {
@@ -36,7 +32,6 @@ impl Connection {
           timeout::SafeFile::new(unix::stdout())),
       error: io::BufWriter::with_capacity(LOG_BUF_BYTES, unix::stderr()),
       remote: remote,
-      buf: Box::new([0; FILE_BUF_BYTES]),
     }
   }
 
@@ -81,11 +76,6 @@ impl Connection {
   pub fn write_hex(&mut self, value: usize) -> Result<()> {
     // TODO: this allocates. :-(
     self.write(format!("{:x}", value).as_bytes())
-  }
-
-  pub fn write_buf(&mut self, count: usize) -> Result<()> {
-    self.output.write_all(&self.buf[..count])
-        .map_err(|_| HttpError::ConnectionClosed)
   }
 
   pub fn flush_output(&mut self) -> Result<()> {
@@ -170,7 +160,6 @@ mod tests {
           timeout::SafeFile::new(pipe_from_con.output)),
       error: io::BufWriter::new(error_from_con.output),
       remote: "REMOTE".to_string(),
-      buf: Box::new([0; super::FILE_BUF_BYTES]),
     };
 
     (c, pipe_to_con.output, pipe_from_con.input, error_from_con.input)
