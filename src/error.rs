@@ -26,6 +26,9 @@ pub enum HttpError {
   /// means.
   NotFound(&'static [u8]),
 
+  /// 408 - The client didn't send data within the time we were willing to wait.
+  RequestTimeout,
+
   /// 412 - The client sent 'If-Match' or 'If-Unmodified-Since' headers, and we
   /// are treating the test they described as having failed.
   PreconditionFailed,
@@ -62,6 +65,7 @@ impl HttpError {
       ConnectionClosed    =>  None,
       BadRequest          =>  Some((b"400", b"bad request")),
       NotFound(_)         =>  Some((b"404", b"not found")),
+      RequestTimeout      =>  Some((b"408", b"type faster")),
       PreconditionFailed  =>  Some((b"412", b"precondition failed")),
       SpanishInquisition  =>  Some((b"417", b"unexpected")),
       IoError(ref e)      =>  Some((b"500", e.description().as_bytes())),
@@ -80,6 +84,7 @@ impl HttpError {
       ConnectionClosed    =>  None,
       BadRequest          =>  Some(b"bad request"),
       NotFound(m)         =>  Some(m),
+      RequestTimeout      =>  None,
       PreconditionFailed  =>  Some(b"precondition failed"),
       SpanishInquisition  =>  Some(b"unexpected"),
       IoError(ref e)      =>  Some(e.description().as_bytes()),
@@ -101,6 +106,7 @@ impl From<io::Error> for HttpError {
     match e.kind() {
       NotFound         => HttpError::NotFound(b"io not found"),
       PermissionDenied => HttpError::NotFound(b"io permission denied"),
+      TimedOut         => HttpError::RequestTimeout,
       _                => HttpError::IoError(e),
     }
   }
