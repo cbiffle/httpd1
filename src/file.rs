@@ -20,8 +20,8 @@ pub fn safe_open<P>(path: P) -> error::Result<FileOrDir>
 where
     P: AsRef<path::Path>,
 {
-    let f = try!(fs::File::open(path));
-    let s = try!(unix::fstat(&f));
+    let f = fs::File::open(path)?;
+    let s = unix::fstat(&f)?;
 
     if (s.st_mode & 0o444) != 0o444 {
         Err(error::HttpError::NotFound(b"not ugo+r"))

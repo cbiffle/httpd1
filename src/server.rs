@@ -59,7 +59,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
     // TODO: doing the percent escaping in-place is seeming less snazzy now that
     // we're having to copy the input path.
     let mut path = req.path.clone();
-    try!(percent::unescape(&mut path));
+    percent::unescape(&mut path)?;
 
     // TODO: probably better to percent-escape into this buffer.
     let mut file_path = path::sanitize(
@@ -73,7 +73,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
 
     let now = time::get_time();
     let content_type = filetype::from_path(&file_path[..]);
-    if let file::FileOrDir::File(mut resource) = try!(open_resource(con, &file_path[..], None)) {
+    if let file::FileOrDir::File(mut resource) = open_resource(con, &file_path[..], None)? {
         let mut encoding = None;
 
         // If that worked, see if there's *also* a GZIPped alternate with accessible

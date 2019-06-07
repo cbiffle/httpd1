@@ -47,7 +47,7 @@ impl Connection {
     /// The delimiter is removed before the result is returned.
     pub fn readline(&mut self) -> Result<Vec<u8>> {
         let mut line = Vec::new();
-        match try!(self.input.read_until(b'\n', &mut line)) {
+        match self.input.read_until(b'\n', &mut line)? {
             0 => return Err(HttpError::ConnectionClosed),
             _ => {
                 if line.last().cloned() == Some(b'\n') {

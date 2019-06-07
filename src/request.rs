@@ -22,7 +22,7 @@ pub fn read(c: &mut Connection) -> Result<Request> {
     let request_line = {
         let mut line;
         loop {
-            line = try!(c.readline());
+            line = c.readline()?;
             // Tolerate and skip blank lines between requests.
             if !line.is_empty() {
                 break;
@@ -31,7 +31,7 @@ pub fn read(c: &mut Connection) -> Result<Request> {
         line
     };
 
-    let mut req = try!(parse_request_line(request_line));
+    let mut req = parse_request_line(request_line)?;
 
     // Collect headers from the connection.  There is some overlap between the
     // information in headers and the information conveyed in the request-line,
@@ -40,7 +40,7 @@ pub fn read(c: &mut Connection) -> Result<Request> {
     let mut hdr = Vec::new(); // Accumulates lines of header.
 
     loop {
-        let hdr_line = try!(c.readline());
+        let hdr_line = c.readline()?;
 
         // Requests headers are slightly complicated because they can be broken
         // over multiple lines using indentation.

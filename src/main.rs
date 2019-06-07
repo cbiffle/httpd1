@@ -38,7 +38,7 @@ fn main() {
 
     with_env_var("UID", unix::setuid);
     with_env_var("GID", |gid| {
-        try!(unix::setgroups(&[gid]));
+        unix::setgroups(&[gid])?;
         unix::setgid(gid)
     });
 

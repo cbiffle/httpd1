@@ -95,10 +95,6 @@ impl HttpError {
     }
 }
 
-/// Coercion support from io::Error to HttpError, so that we can `try!` I/O
-/// functions in contexts where HttpError is expected.
-///
-/// Note: all uses of this are kinda suspect!
 impl From<io::Error> for HttpError {
     fn from(e: io::Error) -> HttpError {
         use std::io::ErrorKind::*;

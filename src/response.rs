@@ -34,22 +34,22 @@ pub fn send(
 
     if unmodified {
         con.log_other(b"note: not modified");
-        try!(start_response(con, protocol, &now, b"304", b"not modified"))
+        start_response(con, protocol, &now, b"304", b"not modified")?
     } else {
-        try!(start_response(con, protocol, &now, b"200", b"OK"))
+        start_response(con, protocol, &now, b"200", b"OK")?
     }
-    try!(con.write(b"Content-Type: "));
-    try!(con.write(content_type));
-    try!(con.write(b"\r\n"));
+    con.write(b"Content-Type: ")?;
+    con.write(content_type)?;
+    con.write(b"\r\n")?;
 
-    try!(con.write(b"Last-Modified: "));
-    try!(con.write(mtime.as_bytes()));
-    try!(con.write(b"\r\n"));
+    con.write(b"Last-Modified: ")?;
+    con.write(mtime.as_bytes())?;
+    con.write(b"\r\n")?;
 
     match encoding {
         None => (),
         Some(ContentEncoding::Gzip) => {
-            try!(con.write(b"Content-Encoding: gzip\r\n"));
+            con.write(b"Content-Encoding: gzip\r\n")?
         }
     }
 
@@ -60,7 +60,7 @@ pub fn send(
         Protocol::Http11 => send_chunked(con, send_content, resource),
     };
 
-    try!(con.flush_output());
+    con.flush_output()?;
     r
 }
 
@@ -80,27 +80,27 @@ pub fn barf(
     };
 
     let now = time::get_time();
-    try!(start_response(
+    start_response(
         con,
         protocol.unwrap_or(Protocol::Http10),
         &now,
         code,
         message
-    ));
-    try!(con.write(b"Content-Length: "));
-    try!(con.write_to_string(message.len() + 28)); // length of HTML wrapper
-    try!(con.write(b"\r\n"));
+    )?;
+    con.write(b"Content-Length: ")?;
+    con.write_to_string(message.len() + 28)?; // length of HTML wrapper
+    con.write(b"\r\n")?;
 
     if protocol == Some(Protocol::Http11) {
-        try!(con.write(b"Connection: close\r\n"));
+        con.write(b"Connection: close\r\n")?;
     }
 
-    try!(con.write(b"Content-Type: text/html\r\n\r\n"));
+    con.write(b"Content-Type: text/html\r\n\r\n")?;
 
     if send_content {
-        try!(con.write(b"<html><body>"));
-        try!(con.write(message));
-        try!(con.write(b"</body></html>\r\n"));
+        con.write(b"<html><body>")?;
+        con.write(message)?;
+        con.write(b"</body></html>\r\n")?;
     }
 
     con.flush_output()
@@ -116,26 +116,26 @@ pub fn redirect(
     let body = b"<html><body>moved permanently</body></html>";
 
     let now = time::get_time();
-    try!(start_response(
+    start_response(
         con,
         protocol,
         &now,
         b"301",
         b"moved permanently"
-    ));
-    try!(con.write(b"Content-Length: "));
-    try!(con.write_to_string(body.len()));
-    try!(con.write(b"\r\nLocation: "));
-    try!(con.write(location));
-    try!(con.write(b"\r\n"));
+    )?;
+    con.write(b"Content-Length: ")?;
+    con.write_to_string(body.len())?;
+    con.write(b"\r\nLocation: ")?;
+    con.write(location)?;
+    con.write(b"\r\n")?;
 
-    try!(con.write(b"Content-Type: text/html\r\n\r\n"));
+    con.write(b"Content-Type: text/html\r\n\r\n")?;
 
     if send_content {
-        try!(con.write(body));
+        con.write(body)?;
     }
 
-    try!(con.flush_output());
+    con.flush_output()?;
 
     match protocol {
         Protocol::Http10 => Err(HttpError::ConnectionClosed),
@@ -144,19 +144,19 @@ pub fn redirect(
 }
 
 fn send_unencoded(con: &mut Connection, send_content: bool, resource: OpenFile) -> Result<()> {
-    try!(con.write(b"Content-Length: "));
-    try!(con.write_to_string(resource.length));
-    try!(con.write(b"\r\n\r\n"));
+    con.write(b"Content-Length: ")?;
+    con.write_to_string(resource.length)?;
+    con.write(b"\r\n\r\n")?;
 
     if send_content {
         let mut input = io::BufReader::with_capacity(1024, resource.file);
         loop {
             let count = {
-                let chunk = try!(input.fill_buf());
+                let chunk = input.fill_buf()?;
                 if chunk.is_empty() {
                     break;
                 }
-                try!(con.write(chunk));
+                con.write(chunk)?;
                 chunk.len()
             };
             input.consume(count);
@@ -169,17 +169,17 @@ fn send_unencoded(con: &mut Connection, send_content: bool, resource: OpenFile) 
 }
 
 fn send_chunked(con: &mut Connection, send_content: bool, resource: OpenFile) -> Result<()> {
-    try!(con.write(b"Transfer-Encoding: chunked\r\n\r\n"));
+    con.write(b"Transfer-Encoding: chunked\r\n\r\n")?;
 
     if send_content {
         let mut input = io::BufReader::with_capacity(1024, resource.file);
         loop {
             let count = {
-                let chunk = try!(input.fill_buf());
-                try!(con.write_hex(chunk.len()));
-                try!(con.write(b"\r\n"));
-                try!(con.write(chunk));
-                try!(con.write(b"\r\n"));
+                let chunk = input.fill_buf()?;
+                con.write_hex(chunk.len())?;
+                con.write(b"\r\n")?;
+                con.write(chunk)?;
+                con.write(b"\r\n")?;
 
                 chunk.len()
             };
@@ -207,16 +207,16 @@ fn start_response(
 ) -> Result<()> {
     let now = format!("{}", time::at_utc(*now).rfc822());
 
-    try!(con.write(match prot {
+    con.write(match prot {
         Protocol::Http10 => b"HTTP/1.0 ",
         Protocol::Http11 => b"HTTP/1.1 ",
-    }));
-    try!(con.write(code));
-    try!(con.write(b" "));
-    try!(con.write(msg));
-    try!(con.write(b"\r\nServer: abstract screaming\r\nDate: "));
-    try!(con.write(now.as_bytes()));
-    try!(con.write(b"\r\n"));
+    })?;
+    con.write(code)?;
+    con.write(b" ")?;
+    con.write(msg)?;
+    con.write(b"\r\nServer: abstract screaming\r\nDate: ")?;
+    con.write(now.as_bytes())?;
+    con.write(b"\r\n")?;
     // TODO date
     Ok(())
 }
