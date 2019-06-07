@@ -6,8 +6,6 @@
 //! purposes we'll pretend it's ISO-8859-1, aka the first 256 codepoints in
 //! Unicode.
 
-use std::ascii::AsciiExt;
-
 /// Trait for objects that can have a prefix of ASCII (or really 8-bit, e.g.
 /// ISO8859-1) characters.
 pub trait AsciiPrefix {

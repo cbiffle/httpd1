@@ -4,9 +4,7 @@ extern crate time;
 
 use std::ffi;
 
-use std::ascii::AsciiExt;
 use std::os::unix::ffi::OsStrExt;
-use std::io::Read;
 
 use super::error::*;
 use super::con::Connection;  // interesting, wildcard doesn't work for this.
@@ -29,7 +27,7 @@ pub fn serve(remote: String) -> Result<()> {
 
     if let Some(error) = serve_request(&mut c, req).err() {
       // Try to report this to the client.  Error reporting is best-effort.
-      let _ = response::barf(&mut c, Some(protocol), (method == Method::Get),
+      let _ = response::barf(&mut c, Some(protocol), method == Method::Get,
                              error);
       return Ok(())
     }

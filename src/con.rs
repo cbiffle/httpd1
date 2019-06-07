@@ -10,8 +10,6 @@ use super::unix;
 use std::io::BufRead;
 use std::io::Write;
 
-use std::os::unix::ffi::OsStrExt;
-
 pub struct Connection {
   input: io::BufReader<timeout::SafeFile>,
   output: io::BufWriter<timeout::SafeFile>,
@@ -144,7 +142,6 @@ mod tests {
   use super::*;
   use super::super::unix;
   use super::super::timeout;
-  use super::super::error::*;
 
   use std::io::Write;
 

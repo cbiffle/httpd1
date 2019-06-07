@@ -2,7 +2,6 @@
 
 extern crate time;
 
-use std::ascii::AsciiExt;
 use std::iter::FromIterator;
 
 use super::error::*;
