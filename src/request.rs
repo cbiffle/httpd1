@@ -42,7 +42,8 @@ pub fn read(c: &mut Connection) -> Result<Request> {
 
         // Requests headers are slightly complicated because they can be broken
         // over multiple lines using indentation.
-        if !hdr.is_empty() && (hdr_line.is_empty() || !is_http_ws(hdr_line[0])) {
+        if !hdr.is_empty() && (hdr_line.is_empty() || !is_http_ws(hdr_line[0]))
+        {
             // At an empty line or a line beginning with non-whitespace, we know we
             // have received the entirety of the *previous* header and can process
             // it.  Only bother if we've accumulated some header; otherwise we're
@@ -50,7 +51,9 @@ pub fn read(c: &mut Connection) -> Result<Request> {
             if hdr.starts_with_ignore_ascii_case(b"content-length:")
                 || hdr.starts_with_ignore_ascii_case(b"transfer-encoding:")
             {
-                return Err(HttpError::NotImplemented(b"I can't receive messages"));
+                return Err(HttpError::NotImplemented(
+                    b"I can't receive messages",
+                ));
             }
             if hdr.starts_with_ignore_ascii_case(b"expect") {
                 return Err(HttpError::SpanishInquisition);
@@ -67,8 +70,9 @@ pub fn read(c: &mut Connection) -> Result<Request> {
                 if req.host.is_none() {
                     // Just drop whitespace characters from the host header.  This
                     // questionable interpretation of the spec mimics publicfile.
-                    let new_host =
-                        Vec::from_iter(hdr[5..].iter().cloned().filter(|b| !is_http_ws(*b)));
+                    let new_host = Vec::from_iter(
+                        hdr[5..].iter().cloned().filter(|b| !is_http_ws(*b)),
+                    );
                     if !new_host.is_empty() {
                         req.host = Some(new_host)
                     }

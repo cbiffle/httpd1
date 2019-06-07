@@ -25,7 +25,8 @@ pub fn unescape(path: &mut Vec<u8>) -> Result<()> {
                 return Err(HttpError::BadRequest);
             }
 
-            if let (Some(a), Some(b)) = (fromhex(path[i]), fromhex(path[i + 1])) {
+            if let (Some(a), Some(b)) = (fromhex(path[i]), fromhex(path[i + 1]))
+            {
                 path[j] = a * 16 + b;
                 j += 1;
                 i += 2; // skip consumed hex characters.

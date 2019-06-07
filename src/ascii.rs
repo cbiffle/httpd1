@@ -52,6 +52,9 @@ mod tests {
             false,
             b"foo".as_ref().starts_with_ignore_ascii_case(b"foobar")
         );
-        assert_eq!(false, b"".as_ref().starts_with_ignore_ascii_case(b"foobar"));
+        assert_eq!(
+            false,
+            b"".as_ref().starts_with_ignore_ascii_case(b"foobar")
+        );
     }
 }

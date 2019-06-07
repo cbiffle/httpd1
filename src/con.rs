@@ -88,7 +88,12 @@ impl Connection {
         self.output.flush().map_err(|_| HttpError::ConnectionClosed)
     }
 
-    pub fn log(&mut self, path: &[u8], context: Option<&'static [u8]>, msg: &[u8]) {
+    pub fn log(
+        &mut self,
+        path: &[u8],
+        context: Option<&'static [u8]>,
+        msg: &[u8],
+    ) {
         // We do not expect writes to the log to fail, and we can't easily
         // handle them if they do, so we ignore the result and return.
         macro_rules! ignore {
@@ -157,8 +162,12 @@ mod tests {
         let error_from_con = unix::pipe().unwrap();
 
         let c = Connection {
-            input: io::BufReader::new(timeout::SafeFile::new(pipe_to_con.input)),
-            output: io::BufWriter::new(timeout::SafeFile::new(pipe_from_con.output)),
+            input: io::BufReader::new(timeout::SafeFile::new(
+                pipe_to_con.input,
+            )),
+            output: io::BufWriter::new(timeout::SafeFile::new(
+                pipe_from_con.output,
+            )),
             error: io::BufWriter::new(error_from_con.output),
             remote: "REMOTE".to_string(),
         };

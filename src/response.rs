@@ -83,7 +83,7 @@ pub fn barf(
         protocol.unwrap_or(Protocol::Http10),
         &now,
         code,
-        message
+        message,
     )?;
     con.write(b"Content-Length: ")?;
     con.write_to_string(message.len() + 28)?; // length of HTML wrapper
@@ -114,13 +114,7 @@ pub fn redirect(
     let body = b"<html><body>moved permanently</body></html>";
 
     let now = time::get_time();
-    start_response(
-        con,
-        protocol,
-        &now,
-        b"301",
-        b"moved permanently"
-    )?;
+    start_response(con, protocol, &now, b"301", b"moved permanently")?;
     con.write(b"Content-Length: ")?;
     con.write_to_string(body.len())?;
     con.write(b"\r\nLocation: ")?;
@@ -141,7 +135,11 @@ pub fn redirect(
     }
 }
 
-fn send_unencoded(con: &mut Connection, send_content: bool, resource: OpenFile) -> Result<()> {
+fn send_unencoded(
+    con: &mut Connection,
+    send_content: bool,
+    resource: OpenFile,
+) -> Result<()> {
     con.write(b"Content-Length: ")?;
     con.write_to_string(resource.length)?;
     con.write(b"\r\n\r\n")?;
@@ -166,7 +164,11 @@ fn send_unencoded(con: &mut Connection, send_content: bool, resource: OpenFile) 
     Err(HttpError::ConnectionClosed)
 }
 
-fn send_chunked(con: &mut Connection, send_content: bool, resource: OpenFile) -> Result<()> {
+fn send_chunked(
+    con: &mut Connection,
+    send_content: bool,
+    resource: OpenFile,
+) -> Result<()> {
     con.write(b"Transfer-Encoding: chunked\r\n\r\n")?;
 
     if send_content {

@@ -33,7 +33,9 @@ trait WriteTimeout {
 
 impl ReadTimeout for fs::File {
     fn wait_for_data(&mut self, seconds: u32) -> io::Result<()> {
-        if unsafe { ffi::wait_for_data(self.as_raw_fd(), seconds as time_t) } == 0 {
+        if unsafe { ffi::wait_for_data(self.as_raw_fd(), seconds as time_t) }
+            == 0
+        {
             Ok(())
         } else {
             Err(io::Error::last_os_error())
@@ -52,7 +54,9 @@ where
 
 impl WriteTimeout for fs::File {
     fn wait_for_writeable(&mut self, seconds: u32) -> io::Result<()> {
-        let r = unsafe { ffi::wait_for_writeable(self.as_raw_fd(), seconds as time_t) };
+        let r = unsafe {
+            ffi::wait_for_writeable(self.as_raw_fd(), seconds as time_t)
+        };
 
         if r == 0 {
             Ok(())

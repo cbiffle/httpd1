@@ -26,7 +26,12 @@ pub fn serve(remote: String) -> Result<()> {
 
         if let Some(error) = serve_request(&mut c, req).err() {
             // Try to report this to the client.  Error reporting is best-effort.
-            let _ = response::barf(&mut c, Some(protocol), method == Method::Get, error);
+            let _ = response::barf(
+                &mut c,
+                Some(protocol),
+                method == Method::Get,
+                error,
+            );
             return Ok(());
         }
 
@@ -71,7 +76,9 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
 
     let now = time::get_time();
     let content_type = filetype::from_path(&file_path[..]);
-    if let file::FileOrDir::File(mut resource) = open_resource(con, &file_path[..], None)? {
+    if let file::FileOrDir::File(mut resource) =
+        open_resource(con, &file_path[..], None)?
+    {
         let mut encoding = None;
 
         // If that worked, see if there's *also* a GZIPped alternate with accessible
@@ -115,7 +122,12 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
                 .cloned()
                 .collect();
 
-            return response::redirect(con, req.protocol, req.method == Method::Get, &url[..]);
+            return response::redirect(
+                con,
+                req.protocol,
+                req.method == Method::Get,
+                &url[..],
+            );
         } else {
             Err(HttpError::NotFound(b"cannot redirect"))
         }
