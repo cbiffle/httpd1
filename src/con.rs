@@ -1,14 +1,11 @@
 //! HTTP connection management
 
 use std::fs;
-use std::io;
+use std::io::{self, BufRead, Write};
 
 use super::error::*;
 use super::timeout;
 use super::unix;
-
-use std::io::BufRead;
-use std::io::Write;
 
 pub struct Connection {
     input: io::BufReader<timeout::SafeFile>,
@@ -33,7 +30,7 @@ impl Connection {
                 timeout::SafeFile::new(unix::stdout()),
             ),
             error: io::BufWriter::with_capacity(LOG_BUF_BYTES, unix::stderr()),
-            remote: remote,
+            remote,
         }
     }
 
@@ -47,21 +44,20 @@ impl Connection {
     /// The delimiter is removed before the result is returned.
     pub fn readline(&mut self) -> Result<Vec<u8>> {
         let mut line = Vec::new();
-        match self.input.read_until(b'\n', &mut line)? {
-            0 => return Err(HttpError::ConnectionClosed),
-            _ => {
-                if line.last().cloned() == Some(b'\n') {
-                    // We actually found our delimiter.
-                    line.pop();
-                    if line.last().cloned() == Some(b'\r') {
-                        line.pop();
-                    }
-                    return Ok(line);
-                } else {
-                    // The stream ended.
-                    return Err(HttpError::ConnectionClosed);
-                }
+        // Note: we're not using read_line because that deals in UTF-8.
+        // Thankfully read_until is available!
+        self.input.read_until(b'\n', &mut line)?;
+
+        if line.pop() == Some(b'\n') {
+            // We actually found our delimiter. If it was CRLF, eat the CR.
+            if line.last() == Some(&b'\r') {
+                line.pop();
             }
+            return Ok(line);
+        } else {
+            // EOF with or without some bytes read looks the same (pop() is
+            // None or not a newline).
+            return Err(HttpError::ConnectionClosed);
         }
     }
 
@@ -74,14 +70,14 @@ impl Connection {
             .map_err(|_| HttpError::ConnectionClosed)
     }
 
-    pub fn write_to_string<T: ToString>(&mut self, value: T) -> Result<()> {
-        // TODO: this allocates. :-(
-        self.write(value.to_string().as_bytes())
+    pub fn write_decimal(&mut self, value: usize) -> Result<()> {
+        write!(self.output, "{}", value)
+            .map_err(|_| HttpError::ConnectionClosed)
     }
 
     pub fn write_hex(&mut self, value: usize) -> Result<()> {
-        // TODO: this allocates. :-(
-        self.write(format!("{:x}", value).as_bytes())
+        write!(self.output, "{:x}", value)
+            .map_err(|_| HttpError::ConnectionClosed)
     }
 
     pub fn flush_output(&mut self) -> Result<()> {

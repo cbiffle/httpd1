@@ -4,7 +4,7 @@ use std::ffi;
 
 use std::os::unix::ffi::OsStrExt;
 
-use super::con::Connection; // interesting, wildcard doesn't work for this.
+use super::con::Connection;
 use super::error::*;
 use super::request::{Method, Protocol, Request};
 use super::response::ContentEncoding;
@@ -17,21 +17,17 @@ pub fn serve(remote: String) -> Result<()> {
         // Process requests.
         let req = match request::read(&mut c) {
             Ok(r) => r,
-            Err(e) => return response::barf(&mut c, None, true, e),
+            Err(e) => return response::barf(c, None, true, e),
         };
 
         // Back up two pieces before we consume the request.
         let protocol = req.protocol;
         let method = req.method;
 
-        if let Some(error) = serve_request(&mut c, req).err() {
+        if let Err(error) = serve_request(&mut c, req) {
             // Try to report this to the client.  Error reporting is best-effort.
-            let _ = response::barf(
-                &mut c,
-                Some(protocol),
-                method == Method::Get,
-                error,
-            );
+            let _ =
+                response::barf(c, Some(protocol), method == Method::Get, error);
             return Ok(());
         }
 
@@ -66,12 +62,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
 
     // TODO: probably better to percent-escape into this buffer.
     let mut file_path = path::sanitize(
-        b"./"
-            .iter()
-            .chain(host.iter())
-            .chain(b"/".iter())
-            .chain(path.iter())
-            .cloned(),
+        b"./".iter().chain(&host).chain(b"/").chain(&path).cloned(),
     );
 
     let now = time::get_time();
@@ -116,8 +107,8 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
         if let Some(ref orig_host) = req.host {
             let url: Vec<_> = b"http://"
                 .iter()
-                .chain(orig_host.iter())
-                .chain(req.path.iter())
+                .chain(orig_host)
+                .chain(&req.path)
                 .chain(b"/".iter())
                 .cloned()
                 .collect();

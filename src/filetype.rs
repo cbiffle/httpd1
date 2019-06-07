@@ -27,7 +27,7 @@ pub fn from_path(file_path: &[u8]) -> Vec<u8> {
 
         // TODO: a path without an extension should perhaps not be served as
         // text/plain?
-        _ => b"text/plain".iter().cloned().collect(),
+        _ => b"text/plain".to_vec(),
     }
 }
 
@@ -41,11 +41,11 @@ fn canned_mapping(ext: &[u8]) -> Vec<u8> {
         b"css" => b"text/css",
         _ => b"text/plain",
     };
-    mimetype.iter().cloned().collect()
+    mimetype.to_vec()
 }
 
 fn env_mapping(ext: &[u8]) -> Option<Vec<u8>> {
-    let key = Vec::from_iter(b"CT_".iter().chain(ext.iter()).cloned());
+    let key = Vec::from_iter(b"CT_".iter().chain(ext).cloned());
     env::var_os(OsString::from_vec(key)).map(|s| s.into_vec())
 }
 

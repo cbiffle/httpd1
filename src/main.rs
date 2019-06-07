@@ -1,8 +1,5 @@
-use std::env;
-use std::io;
-use std::process;
-
 use std::str::FromStr;
+use std::{env, process};
 
 mod ascii;
 mod con;
@@ -21,17 +18,14 @@ mod unix;
 /// In this case, "undesirable authority" means:
 /// - The global filesystem root (shed via `chroot`)
 /// - The calling uid/gid and supplementary groups.
-#[cfg_attr(test, allow(dead_code))]
-fn main() {
+pub fn main() {
     // Only chroot if a root directory is provided.  This allows for testing (most
     // of the) the daemon as an unprivileged user.
     if let Some(root) = env::args().nth(1) {
-        if env::set_current_dir(&root).is_err() {
-            process::exit(20)
-        }
-        if unix::chroot(root.as_bytes()).is_err() {
-            process::exit(30)
-        }
+        env::set_current_dir(&root)
+            .map_err(|_| 20)
+            .and_then(|_| unix::chroot(root.as_bytes()).map_err(|_| 30))
+            .unwrap_or_else(|n| process::exit(n));
     }
 
     with_env_var("UID", unix::setuid);
@@ -42,22 +36,14 @@ fn main() {
 
     let remote = env::var("TCPREMOTEIP").unwrap_or_else(|_| "0".to_string());
 
-    if server::serve(remote).is_err() {
-        process::exit(40)
-    }
+    server::serve(remote).unwrap_or_else(|_| process::exit(40))
 }
 
-fn with_env_var<V: FromStr, F>(var: &str, f: F)
-where
-    F: FnOnce(V) -> io::Result<()>,
-{
+fn with_env_var<V: FromStr, E>(var: &str, f: impl FnOnce(V) -> Result<(), E>) {
     if let Ok(val_str) = env::var(var) {
-        if let Ok(val) = FromStr::from_str(&val_str) {
-            if f(val).is_err() {
-                process::exit(30)
-            }
-        } else {
-            process::exit(30)
-        }
+        V::from_str(&val_str)
+            .map_err(|_| 30)
+            .and_then(|val| f(val).map_err(|_| 30))
+            .unwrap_or_else(|n| process::exit(n))
     }
 }

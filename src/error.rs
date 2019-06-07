@@ -59,16 +59,22 @@ impl HttpError {
     /// Returns the numeric HTTP status code appropriate for this error, along
     /// with a short ASCII-encoded explanatory message.
     pub fn status<'a>(&'a self) -> Option<(&'a [u8], &'a [u8])> {
-        use self::HttpError::*;
+        use HttpError::*;
 
-        match *self {
+        match self {
+            // The "not found" message discloses file existence and permissions,
+            // so we sanitize it.
+            NotFound(_) => Some((b"404", b"not found")),
+            // I/O error messages from std might disclose stuff, so we sanitize
+            // it too.
+            IoError(_) => Some((b"500", b"I/O error")),
+
+            // Everything else is straightforward.
             ConnectionClosed => None,
             BadRequest => Some((b"400", b"bad request")),
-            NotFound(_) => Some((b"404", b"not found")),
             RequestTimeout => Some((b"408", b"type faster")),
             PreconditionFailed => Some((b"412", b"precondition failed")),
             SpanishInquisition => Some((b"417", b"unexpected")),
-            IoError(ref e) => Some((b"500", e.description().as_bytes())),
             BadMethod => Some((b"501", b"bad method")),
             NotImplemented(m) => Some((b"501", m)),
             BadProtocol => Some((b"505", b"bad protocol")),
@@ -80,14 +86,14 @@ impl HttpError {
     pub fn log_message<'a>(&'a self) -> Option<&'a [u8]> {
         use self::HttpError::*;
 
-        match *self {
+        match self {
             ConnectionClosed => None,
             BadRequest => Some(b"bad request"),
             NotFound(m) => Some(m),
             RequestTimeout => None,
             PreconditionFailed => Some(b"precondition failed"),
             SpanishInquisition => Some(b"unexpected"),
-            IoError(ref e) => Some(e.description().as_bytes()),
+            IoError(e) => Some(e.description().as_bytes()),
             BadMethod => Some(b"bad method"),
             NotImplemented(m) => Some(m),
             BadProtocol => Some(b"bad protocol"),

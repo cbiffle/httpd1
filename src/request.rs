@@ -1,7 +1,5 @@
 //! HTTP request support.
 
-use std::iter::FromIterator;
-
 use super::ascii::AsciiPrefix;
 use super::con::Connection; // interesting, wildcard doesn't work for this.
 use super::error::*;
@@ -17,16 +15,12 @@ pub fn read(c: &mut Connection) -> Result<Request> {
     // Our tolerance of multiple blank lines between requests on a connection, and
     // blank lines before the initial request, mimics Publicfile, but does not
     // appear to be required or suggested by the standard.
-    let request_line = {
-        let mut line;
-        loop {
-            line = c.readline()?;
-            // Tolerate and skip blank lines between requests.
-            if !line.is_empty() {
-                break;
-            }
+    let request_line = loop {
+        let line = c.readline()?;
+        // Tolerate and skip blank lines between requests.
+        if !line.is_empty() {
+            break line;
         }
-        line
     };
 
     let mut req = parse_request_line(request_line)?;
@@ -35,7 +29,9 @@ pub fn read(c: &mut Connection) -> Result<Request> {
     // information in headers and the information conveyed in the request-line,
     // so we load it into the request as we find it.
 
-    let mut hdr = Vec::new(); // Accumulates lines of header.
+    // A header can span multiple lines. This accumulates each piece of a
+    // multi-line header.
+    let mut hdr = Vec::new();
 
     loop {
         let hdr_line = c.readline()?;
@@ -70,30 +66,33 @@ pub fn read(c: &mut Connection) -> Result<Request> {
                 if req.host.is_none() {
                     // Just drop whitespace characters from the host header.  This
                     // questionable interpretation of the spec mimics publicfile.
-                    let new_host = Vec::from_iter(
-                        hdr[5..].iter().cloned().filter(|b| !is_http_ws(*b)),
-                    );
+                    let new_host = hdr[5..]
+                        .iter()
+                        .filter(|&&b| !is_http_ws(b))
+                        .cloned()
+                        .collect::<Vec<_>>();
                     if !new_host.is_empty() {
                         req.host = Some(new_host)
                     }
                 }
             } else if hdr.starts_with_ignore_ascii_case(b"if-modified-since") {
-                req.if_modified_since = Some(Vec::from_iter(
-                    hdr[18..].iter().cloned().skip_while(|b| is_http_ws(*b)),
-                ));
+                req.if_modified_since = Some(
+                    hdr[18..]
+                        .iter()
+                        .skip_while(|&&b| is_http_ws(b))
+                        .cloned()
+                        .collect(),
+                );
             } else if hdr.starts_with_ignore_ascii_case(b"accept-encoding:") {
                 // TODO: our interpretation of this header's values are out of spec,
                 // but identical to publicfile's behavior.  We could get tripped up
                 // by encodings that mention gzip as a substring, or by clients
                 // trying to forbid gzip for some reason ("gzip;q=0" is equivalent
                 // to omitting "gzip", but nobody does this).
-                let mut substr = &hdr[16..];
-                while !substr.is_empty() {
-                    if substr.starts_with_ignore_ascii_case(b"gzip") {
+                for window in hdr[16..].windows(4) {
+                    if window.starts_with_ignore_ascii_case(b"gzip") {
                         req.accept_gzip = true;
                         break;
-                    } else {
-                        substr = &substr[1..]
                     }
                 }
             }
@@ -129,12 +128,7 @@ pub enum Protocol {
 }
 
 fn indexof<T: PartialEq>(slice: &[T], item: T) -> usize {
-    for i in 0..slice.len() {
-        if slice[i] == item {
-            return i;
-        }
-    }
-    slice.len()
+    slice.iter().position(|x| &item == x).unwrap_or(slice.len())
 }
 
 fn parse_request_line(line: Vec<u8>) -> Result<Request> {
@@ -152,12 +146,11 @@ fn parse_request_line(line: Vec<u8>) -> Result<Request> {
         let raw = parts[1];
         // Distinguish an old-style path-only request from a HTTP/1.1-style URL
         // request by checking for the presence of an HTTP scheme.
-        if raw.len() >= 7 && raw[..7].eq_ignore_ascii_case(b"http://") {
+        if raw.starts_with_ignore_ascii_case(b"http://") {
             // Split the remainder at the first slash.  The bytes to the left are the
             // host name; to the right, including the delimiter, the path.
             let (host, path) = raw[7..].split_at(indexof(&raw[7..], b'/'));
-            let host = Vec::from_iter(host.into_iter().cloned());
-            let path = Vec::from_iter(path.into_iter().cloned());
+            let path = path.to_vec();
 
             if host.is_empty() {
                 // The client can totally specify an "empty host" using a URL of the
@@ -165,10 +158,10 @@ fn parse_request_line(line: Vec<u8>) -> Result<Request> {
                 // host specification.
                 (None, path)
             } else {
-                (Some(host), path)
+                (Some(host.to_vec()), path)
             }
         } else {
-            (None, Vec::from_iter(parts[1].into_iter().cloned()))
+            (None, parts[1].to_vec())
         }
     };
     let protocol = match parts[2] {
@@ -180,14 +173,14 @@ fn parse_request_line(line: Vec<u8>) -> Result<Request> {
     // Slap an 'index.html' onto the end of any path that, from simple textual
     // inspection, ends in a directory.
     if path.is_empty() || path.ends_with(b"/") {
-        path.extend(b"index.html".into_iter().cloned());
+        path.extend_from_slice(b"index.html");
     }
 
     Ok(Request {
-        method: method,
-        protocol: protocol,
-        host: host,
-        path: path,
+        method,
+        protocol,
+        host,
+        path,
         if_modified_since: None, // Filled in later.
         accept_gzip: false,      // Filled in later.
     })

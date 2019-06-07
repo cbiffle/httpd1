@@ -32,9 +32,9 @@ pub fn send(
 
     if unmodified {
         con.log_other(b"note: not modified");
-        start_response(con, protocol, &now, b"304", b"not modified")?
+        start_response(con, protocol, now, b"304", b"not modified")?
     } else {
-        start_response(con, protocol, &now, b"200", b"OK")?
+        start_response(con, protocol, now, b"200", b"OK")?
     }
     con.write(b"Content-Type: ")?;
     con.write(content_type)?;
@@ -67,7 +67,7 @@ pub fn send(
 /// Currently, this also closes the connection, though this seems like a
 /// decision better left to the caller (TODO).
 pub fn barf(
-    con: &mut Connection,
+    mut con: Connection,
     protocol: Option<Protocol>,
     send_content: bool,
     error: HttpError,
@@ -79,14 +79,14 @@ pub fn barf(
 
     let now = time::get_time();
     start_response(
-        con,
+        &mut con,
         protocol.unwrap_or(Protocol::Http10),
-        &now,
+        now,
         code,
         message,
     )?;
     con.write(b"Content-Length: ")?;
-    con.write_to_string(message.len() + 28)?; // length of HTML wrapper
+    con.write_decimal(message.len() + 28)?; // length of HTML wrapper
     con.write(b"\r\n")?;
 
     if protocol == Some(Protocol::Http11) {
@@ -114,9 +114,9 @@ pub fn redirect(
     let body = b"<html><body>moved permanently</body></html>";
 
     let now = time::get_time();
-    start_response(con, protocol, &now, b"301", b"moved permanently")?;
+    start_response(con, protocol, now, b"301", b"moved permanently")?;
     con.write(b"Content-Length: ")?;
-    con.write_to_string(body.len())?;
+    con.write_decimal(body.len())?;
     con.write(b"\r\nLocation: ")?;
     con.write(location)?;
     con.write(b"\r\n")?;
@@ -141,7 +141,7 @@ fn send_unencoded(
     resource: OpenFile,
 ) -> Result<()> {
     con.write(b"Content-Length: ")?;
-    con.write_to_string(resource.length)?;
+    con.write_decimal(resource.length as usize)?;
     con.write(b"\r\n\r\n")?;
 
     if send_content {
@@ -201,11 +201,11 @@ fn send_chunked(
 fn start_response(
     con: &mut Connection,
     prot: Protocol,
-    now: &time::Timespec,
+    now: time::Timespec,
     code: &[u8],
     msg: &[u8],
 ) -> Result<()> {
-    let now = format!("{}", time::at_utc(*now).rfc822());
+    let now = format!("{}", time::at_utc(now).rfc822());
 
     con.write(match prot {
         Protocol::Http10 => b"HTTP/1.0 ",
@@ -217,6 +217,5 @@ fn start_response(
     con.write(b"\r\nServer: abstract screaming\r\nDate: ")?;
     con.write(now.as_bytes())?;
     con.write(b"\r\n")?;
-    // TODO date
     Ok(())
 }

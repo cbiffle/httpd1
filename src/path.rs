@@ -1,7 +1,5 @@
 //! Operations on paths.
 
-use std::iter::IntoIterator;
-
 /// Sanitizes a path received from a client: replaces NULs, collapses duplicate
 /// slashes, and replaces initial dots.  This is partially paranoia and
 /// partially about log tidiness.
@@ -16,19 +14,16 @@ where
         match c {
             0 => result.push(b'_'),
             b'/' => {
-                if result.last().cloned() != Some(b'/') {
+                if result.last() != Some(&b'/') {
                     result.push(c)
                 }
             }
-            b'.' => {
-                let c = if result.last().cloned() == Some(b'/') {
-                    b':'
-                } else {
-                    c
-                };
-                result.push(c)
-            }
-            c => result.push(c),
+            b'.' => result.push(if result.last() == Some(&b'/') {
+                b':'
+            } else {
+                c
+            }),
+            _ => result.push(c),
         }
     }
     result

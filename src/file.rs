@@ -24,13 +24,9 @@ where
         Err(error::HttpError::NotFound(b"not ugo+r"))
     } else if (s.st_mode & 0o101) == 0o001 {
         Err(error::HttpError::NotFound(b"o+x but u-x"))
-    } else if (s.st_mode & libc::S_IFMT) != libc::S_IFREG {
-        if (s.st_mode & libc::S_IFMT) == libc::S_IFDIR {
-            Ok(FileOrDir::Dir)
-        } else {
-            Err(error::HttpError::NotFound(b"not a regular file"))
-        }
-    } else {
+    } else if (s.st_mode & libc::S_IFMT) == libc::S_IFDIR {
+        Ok(FileOrDir::Dir)
+    } else if (s.st_mode & libc::S_IFMT) == libc::S_IFREG {
         Ok(FileOrDir::File(OpenFile {
             file: f,
             mtime: time::Timespec {
@@ -39,9 +35,13 @@ where
             },
             length: s.st_size as u64,
         }))
+    } else {
+        Err(error::HttpError::NotFound(b"not a regular file"))
     }
 }
 
+/// Used to represent the result of opening a path, which might have turned out
+/// to be a directory.
 pub enum FileOrDir {
     File(OpenFile),
     Dir,
