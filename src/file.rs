@@ -1,8 +1,5 @@
 //! File access operations.
 
-extern crate libc;
-extern crate time;
-
 use std::fs;
 use std::path;
 

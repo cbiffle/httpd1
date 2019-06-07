@@ -1,7 +1,5 @@
 //! HTTP response support.
 
-extern crate time;
-
 use std::io;
 use std::io::BufRead;
 

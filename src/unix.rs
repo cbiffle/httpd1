@@ -1,8 +1,5 @@
 //! A thin veneer for libc et al.
 
-extern crate libc;
-extern crate time;
-
 use std::fs;
 use std::io;
 use std::mem;

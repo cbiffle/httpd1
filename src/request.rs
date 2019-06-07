@@ -1,7 +1,5 @@
 //! HTTP request support.
 
-extern crate time;
-
 use std::iter::FromIterator;
 
 use super::ascii::AsciiPrefix;
