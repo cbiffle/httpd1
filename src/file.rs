@@ -1,9 +1,9 @@
 //! File access operations.
 
 use std::fs;
+use std::os::unix::fs::MetadataExt;
 use std::path;
 use std::time::SystemTime;
-use std::os::unix::fs::MetadataExt;
 
 use super::error;
 

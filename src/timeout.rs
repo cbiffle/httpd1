@@ -6,10 +6,7 @@ use std::io;
 use std::os::unix::io::AsRawFd;
 
 fn cvt_err(e: nix::Error) -> io::Error {
-    io::Error::new(
-        io::ErrorKind::Other,
-        format!("{}", e),
-    )
+    io::Error::new(io::ErrorKind::Other, format!("{}", e))
 }
 
 /// A trait for objects that can produce data, but not all the time.  This trait
@@ -42,13 +39,8 @@ impl ReadTimeout for fs::File {
         let mut fds = FdSet::new();
         fds.insert(fd);
 
-        select(
-            fd + 1,
-            Some(&mut fds),
-            None,
-            None,
-            Some(&mut tv),
-        ).map_err(cvt_err)?;
+        select(fd + 1, Some(&mut fds), None, None, Some(&mut tv))
+            .map_err(cvt_err)?;
         if !fds.contains(fd) {
             return Err(nix::errno::Errno::ETIMEDOUT.into());
         }
@@ -79,13 +71,8 @@ impl WriteTimeout for fs::File {
         let mut fds = FdSet::new();
         fds.insert(fd);
 
-        select(
-            fd + 1,
-            None,
-            Some(&mut fds),
-            None,
-            Some(&mut tv),
-        ).map_err(cvt_err)?;
+        select(fd + 1, None, Some(&mut fds), None, Some(&mut tv))
+            .map_err(cvt_err)?;
         if !fds.contains(fd) {
             return Err(nix::errno::Errno::ETIMEDOUT.into());
         }
