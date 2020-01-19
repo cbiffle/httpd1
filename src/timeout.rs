@@ -10,25 +10,29 @@ mod ffi {
     use std::ptr::null_mut;
     use libc::{c_int, time_t};
 
-    pub unsafe fn wait_for_data(fd: c_int, seconds: time_t) -> c_int {
-        let mut tv = libc::timeval {
+    pub fn wait_for_data(fd: c_int, seconds: time_t) -> nix::Result<()> {
+        use nix::sys::select::{select, FdSet};
+        use nix::sys::time::TimeVal;
+
+        let mut tv = TimeVal::from(libc::timeval {
             tv_sec: seconds,
             tv_usec: 0,
-        };
+        });
 
-        let mut fds = MaybeUninit::uninit();
-        libc::FD_ZERO(fds.as_mut_ptr());
-        let fds = fds.as_mut_ptr();
-        libc::FD_SET(fd, fds);
+        let mut fds = FdSet::new();
+        fds.insert(fd);
 
-        if libc::select(fd + 1, fds, null_mut(), null_mut(), &mut tv) == -1 {
-            return -1;
+        select(
+            fd + 1,
+            Some(&mut fds),
+            None,
+            None,
+            Some(&mut tv),
+        )?;
+        if !fds.contains(fd) {
+            return Err(nix::errno::Errno::ETIMEDOUT.into());
         }
-        if !libc::FD_ISSET(fd, fds) {
-            return -1;
-        }
-
-        0
+        Ok(())
     }
 
     pub unsafe fn wait_for_writeable(fd: c_int, seconds: time_t) -> c_int {
@@ -53,6 +57,13 @@ mod ffi {
     }
 }
 
+fn cvt_err(e: nix::Error) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::Other,
+        format!("{}", e),
+    )
+}
+
 /// A trait for objects that can produce data, but not all the time.  This trait
 /// would typically be combined with `std::io::Read`.
 trait ReadTimeout {
@@ -71,13 +82,8 @@ trait WriteTimeout {
 
 impl ReadTimeout for fs::File {
     fn wait_for_data(&mut self, seconds: u32) -> io::Result<()> {
-        if unsafe { ffi::wait_for_data(self.as_raw_fd(), seconds as time_t) }
-            == 0
-        {
-            Ok(())
-        } else {
-            Err(io::Error::last_os_error())
-        }
+        ffi::wait_for_data(self.as_raw_fd(), seconds as time_t)
+            .map_err(cvt_err)
     }
 }
 
