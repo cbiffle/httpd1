@@ -152,13 +152,12 @@ fn open_resource(
 // If the client provided a host, we must normalize it for use as a directory
 // name: downcase it and strip off the port, if any.
 fn normalize_host(host: &mut Vec<u8>) {
-    for i in 0..host.len() {
-        let c = host[i];
-        if c == b':' {
+    for (i, c) in host.iter_mut().enumerate() {
+        if *c == b':' {
             host.truncate(i);
             return;
         } else {
-            host[i] = c.to_ascii_lowercase()
+            *c = c.to_ascii_lowercase()
         }
     }
 }
