@@ -1,17 +1,30 @@
 //! A thin veneer for libc et al.
 
 use std::fs;
-
-use std::os::unix::io::FromRawFd;
+use std::os::unix::io::{AsRawFd, FromRawFd};
 
 pub fn stdin() -> fs::File {
-    unsafe { fs::File::from_raw_fd(0) }
+    let s = std::io::stdin();
+    let s = s.lock();
+    let fd = s.as_raw_fd();
+    std::mem::forget(s);
+    unsafe { fs::File::from_raw_fd(fd) }
 }
+
 pub fn stdout() -> fs::File {
-    unsafe { fs::File::from_raw_fd(1) }
+    let s = std::io::stdout();
+    let s = s.lock();
+    let fd = s.as_raw_fd();
+    std::mem::forget(s);
+    unsafe { fs::File::from_raw_fd(fd) }
 }
+
 pub fn stderr() -> fs::File {
-    unsafe { fs::File::from_raw_fd(2) }
+    let s = std::io::stderr();
+    let s = s.lock();
+    let fd = s.as_raw_fd();
+    std::mem::forget(s);
+    unsafe { fs::File::from_raw_fd(fd) }
 }
 
 /// Wraps POSIX pipe(2).  On success, returns a pair of Files that own the
