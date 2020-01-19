@@ -10,3 +10,4 @@ cc = "1.0"
 [dependencies]
 httpdate = "0.3"
 libc = "0.2"
+nix = "0.16"

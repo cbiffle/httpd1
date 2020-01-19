@@ -24,14 +24,18 @@ pub fn main() {
     if let Some(root) = env::args().nth(1) {
         env::set_current_dir(&root)
             .map_err(|_| 20)
-            .and_then(|_| unix::chroot(root.as_bytes()).map_err(|_| 30))
+            .and_then(|_| nix::unistd::chroot(root.as_bytes()).map_err(|_| 30))
             .unwrap_or_else(|n| process::exit(n));
     }
 
-    with_env_var("UID", unix::setuid);
+    with_env_var("UID", |uid| {
+        let uid = nix::unistd::Uid::from_raw(uid);
+        nix::unistd::setuid(uid)
+    });
     with_env_var("GID", |gid| {
-        unix::setgroups(&[gid])?;
-        unix::setgid(gid)
+        let gid = nix::unistd::Gid::from_raw(gid);
+        nix::unistd::setgroups(&[gid])?;
+        nix::unistd::setgid(gid)
     });
 
     let remote = env::var("TCPREMOTEIP").unwrap_or_else(|_| "0".to_string());
