@@ -3,7 +3,6 @@
 use std::env;
 use std::ffi::OsString;
 
-use std::iter::FromIterator;
 use std::os::unix::ffi::OsStringExt;
 
 /// Takes a guess at a file's MIME type using its file extension.
@@ -45,7 +44,7 @@ fn canned_mapping(ext: &[u8]) -> Vec<u8> {
 }
 
 fn env_mapping(ext: &[u8]) -> Option<Vec<u8>> {
-    let key = Vec::from_iter(b"CT_".iter().chain(ext).cloned());
+    let key = b"CT_".iter().chain(ext).cloned().collect::<Vec<_>>();
     env::var_os(OsString::from_vec(key)).map(|s| s.into_vec())
 }
 

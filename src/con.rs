@@ -36,7 +36,8 @@ impl Connection {
 
     /// Reads a CRLF-terminated line, of the sort used in HTTP requests.
     /// This function guarantees that a successful result describes an entire
-    /// line -- if the input is closed before CRLF, it signals `BrokenPipe`.
+    /// line -- if the input is closed before CRLF, it signals
+    /// `ConnectionClosed`.
     ///
     /// As suggested in section 19.3 of the HTTP/1.1 spec ("Tolerant
     /// Applications"), we actually accept LF-terminated lines as well as CRLF.
@@ -92,51 +93,37 @@ impl Connection {
     ) {
         // We do not expect writes to the log to fail, and we can't easily
         // handle them if they do, so we ignore the result and return.
-        macro_rules! ignore {
-            ($op: expr) => {
-                match $op {
-                    Ok(_) => (),
-                    Err(_) => return (),
-                }
-            };
-        }
-
-        ignore!(self.error.write_all(self.remote.as_bytes()));
-        ignore!(self.error.write_all(b" read "));
-        if path.len() > 100 {
-            ignore!(self.error.write_all(&path[..100]));
-            ignore!(self.error.write_all(b"..."))
-        } else {
-            ignore!(self.error.write_all(path))
-        }
-        if let Some(c) = context {
-            ignore!(self.error.write_all(b" ["));
-            ignore!(self.error.write_all(c));
-            ignore!(self.error.write_all(b"]"));
-        }
-        ignore!(self.error.write_all(b": "));
-        ignore!(self.error.write_all(msg));
-        ignore!(self.error.write_all(b"\n"));
-        ignore!(self.error.flush());
+        let _ = (|| {
+            self.error.write_all(self.remote.as_bytes())?;
+            self.error.write_all(b" read ")?;
+            if path.len() > 100 {
+                self.error.write_all(&path[..100])?;
+                self.error.write_all(b"...")?
+            } else {
+                self.error.write_all(path)?
+            }
+            if let Some(c) = context {
+                self.error.write_all(b" [")?;
+                self.error.write_all(c)?;
+                self.error.write_all(b"]")?;
+            }
+            self.error.write_all(b": ")?;
+            self.error.write_all(msg)?;
+            self.error.write_all(b"\n")?;
+            self.error.flush()
+        })();
     }
 
     pub fn log_other(&mut self, message: &[u8]) {
         // We do not expect writes to the log to fail, and we can't easily
         // handle them if they do, so we ignore the result and return.
-        macro_rules! ignore {
-            ($op: expr) => {
-                match $op {
-                    Ok(_) => (),
-                    Err(_) => return (),
-                }
-            };
-        }
-
-        ignore!(self.error.write_all(self.remote.as_bytes()));
-        ignore!(self.error.write_all(b" "));
-        ignore!(self.error.write_all(message));
-        ignore!(self.error.write_all(b"\n"));
-        ignore!(self.error.flush());
+        let _ = (|| {
+            self.error.write_all(self.remote.as_bytes())?;
+            self.error.write_all(b" ")?;
+            self.error.write_all(message)?;
+            self.error.write_all(b"\n")?;
+            self.error.flush()
+        })();
     }
 }
 

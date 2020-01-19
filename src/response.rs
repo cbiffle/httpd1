@@ -19,17 +19,13 @@ pub fn send(
     protocol: Protocol,
     now: SystemTime,
     encoding: Option<ContentEncoding>,
-    if_modified_since: Option<Vec<u8>>,
+    if_modified_since: Option<&[u8]>,
     content_type: &[u8],
     resource: OpenFile,
 ) -> Result<()> {
     let mtime = httpdate::fmt_http_date(resource.mtime);
 
-    let unmodified = if let Some(ref ims) = if_modified_since {
-        &ims[..] == mtime.as_bytes()
-    } else {
-        false
-    };
+    let unmodified = if_modified_since == Some(mtime.as_bytes());
 
     if unmodified {
         con.log_other(b"note: not modified");
@@ -45,11 +41,8 @@ pub fn send(
     con.write(mtime.as_bytes())?;
     con.write(b"\r\n")?;
 
-    match encoding {
-        None => (),
-        Some(ContentEncoding::Gzip) => {
-            con.write(b"Content-Encoding: gzip\r\n")?
-        }
+    if let Some(ContentEncoding::Gzip) = encoding {
+        con.write(b"Content-Encoding: gzip\r\n")?
     }
 
     let send_content = method == Method::Get && !unmodified;
@@ -184,8 +177,9 @@ fn send_chunked(
                 chunk.len()
             };
             if count == 0 {
+                // End of transfer.
                 break;
-            } // End of transfer.
+            }
 
             input.consume(count)
         }

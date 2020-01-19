@@ -46,16 +46,14 @@ pub fn unescape(path: &mut Vec<u8>) -> Result<()> {
 mod tests {
     use super::*;
 
-    use std::iter::FromIterator;
-
     macro_rules! unescape_case {
         ($input: expr, PASS, $output: expr) => {{
-            let mut v = Vec::from_iter($input.iter().cloned());
+            let mut v = $input.iter().cloned().collect::<Vec<_>>();
             assert!(unescape(&mut v).is_ok());
             assert_eq!($output, &v[..])
         }};
         ($input: expr, FAIL) => {{
-            let mut v = Vec::from_iter($input.iter().cloned());
+            let mut v = $input.iter().cloned().collect::<Vec<_>>();
             assert!(unescape(&mut v).is_err());
         }};
     }

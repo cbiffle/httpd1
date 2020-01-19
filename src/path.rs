@@ -3,10 +3,7 @@
 /// Sanitizes a path received from a client: replaces NULs, collapses duplicate
 /// slashes, and replaces initial dots.  This is partially paranoia and
 /// partially about log tidiness.
-pub fn sanitize<I>(path: I) -> Vec<u8>
-where
-    I: IntoIterator<Item = u8>,
-{
+pub fn sanitize(path: impl IntoIterator<Item = u8>) -> Vec<u8> {
     let iter = path.into_iter();
     let mut result = Vec::with_capacity(iter.size_hint().0);
 

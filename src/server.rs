@@ -98,7 +98,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
             req.protocol,
             now,
             encoding,
-            req.if_modified_since,
+            req.if_modified_since.as_ref().map(Vec::as_slice),
             &content_type[..],
             resource,
         )
