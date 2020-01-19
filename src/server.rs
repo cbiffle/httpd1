@@ -1,6 +1,5 @@
 //! The core HTTP server, which ties the other modules together.
 
-use std::borrow::Cow;
 use std::ffi;
 use std::os::unix::ffi::OsStrExt;
 use std::time::SystemTime;
@@ -42,27 +41,20 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
     // generate a file path.  Tolerate Host's absence for HTTP/1.0 requests
     // by replacing it with the simulated host "0".
     let host = match (&req.host, req.protocol) {
-        (Some(h), _) => {
-            // TODO: we're copying this to preserve the bytes sent by the client
-            // again.
-            let mut h = h.clone();
-            normalize_host(&mut h);
-            Cow::from(h)
-        }
-        (None, Protocol::Http10) => Cow::from(b"0" as &[u8]),
+        (Some(h), _) => h.as_slice(),
+        (None, Protocol::Http10) => b"0",
         // HTTP 1.1 requests must include a host, one way or another.
         _ => return Err(HttpError::BadRequest),
     };
 
-    // TODO: doing the percent escaping in-place is seeming less snazzy now that
-    // we're having to copy the input path.
-    let mut path = req.path.clone();
-    percent::unescape(&mut path)?;
+    let mut file_path = Vec::with_capacity(2 + host.len() + 1 + req.path.len());
+    file_path.extend_from_slice(b"./");
+    normalize_host(host, &mut file_path);
+    file_path.push(b'/');
+    percent::unescape(&req.path, &mut file_path)?;
 
-    // TODO: probably better to percent-escape into this buffer.
-    let mut file_path = path::sanitize(
-        b"./".iter().chain(&*host).chain(b"/").chain(&path).cloned(),
-    );
+    // TODO: this is still allocating unnecessarily
+    let mut file_path = path::sanitize(file_path);
 
     let now = SystemTime::now();
     let content_type = filetype::from_path(&file_path);
@@ -151,13 +143,12 @@ fn open_resource(
 
 // If the client provided a host, we must normalize it for use as a directory
 // name: downcase it and strip off the port, if any.
-fn normalize_host(host: &mut Vec<u8>) {
-    for (i, c) in host.iter_mut().enumerate() {
+fn normalize_host(orig: &[u8], out: &mut Vec<u8>) {
+    for c in orig {
         if *c == b':' {
-            host.truncate(i);
             return;
         } else {
-            *c = c.to_ascii_lowercase()
+            out.push(c.to_ascii_lowercase());
         }
     }
 }

@@ -3,7 +3,7 @@
 use crate::error::{HttpError, Result};
 
 /// Decodes URL percent-escaping, in-place.  Fails if the encoding is bad.
-pub fn unescape(path: &mut Vec<u8>) -> Result<()> {
+pub fn unescape(path: &[u8], out: &mut Vec<u8>) -> Result<()> {
     fn fromhex(b: u8) -> Option<u8> {
         match b {
             b'0'..=b'9' => Some(b - b'0'),
@@ -13,8 +13,9 @@ pub fn unescape(path: &mut Vec<u8>) -> Result<()> {
         }
     }
 
+    // TODO this is such a C approach; mutable index variables are hard to
+    // reason about.
     let mut i = 0;
-    let mut j = 0;
     while i < path.len() {
         let c = path[i];
         i += 1;
@@ -27,18 +28,15 @@ pub fn unescape(path: &mut Vec<u8>) -> Result<()> {
 
             if let (Some(a), Some(b)) = (fromhex(path[i]), fromhex(path[i + 1]))
             {
-                path[j] = a * 16 + b;
-                j += 1;
+                out.push(a * 16 + b);
                 i += 2; // skip consumed hex characters.
             } else {
                 return Err(HttpError::BadRequest);
             }
         } else {
-            path[j] = c;
-            j += 1;
+            out.push(c);
         }
     }
-    path.truncate(j);
     Ok(())
 }
 
@@ -48,13 +46,15 @@ mod tests {
 
     macro_rules! unescape_case {
         ($input: expr, PASS, $output: expr) => {{
-            let mut v = $input.iter().cloned().collect::<Vec<_>>();
-            assert!(unescape(&mut v).is_ok());
+            let path = $input;
+            let mut v = Vec::new();
+            assert!(unescape(path, &mut v).is_ok());
             assert_eq!($output, &v[..])
         }};
         ($input: expr, FAIL) => {{
-            let mut v = $input.iter().cloned().collect::<Vec<_>>();
-            assert!(unescape(&mut v).is_err());
+            let path = $input;
+            let mut v = Vec::new();
+            assert!(unescape(path, &mut v).is_err());
         }};
     }
 
