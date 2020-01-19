@@ -4,10 +4,10 @@ use std::io;
 use std::io::BufRead;
 use std::time::SystemTime;
 
-use super::con::Connection;
-use super::error::{HttpError, Result};
-use super::file::OpenFile;
-use super::request::{Method, Protocol};
+use crate::con::Connection;
+use crate::error::{HttpError, Result};
+use crate::file::OpenFile;
+use crate::request::{Method, Protocol};
 
 pub enum ContentEncoding {
     Gzip,

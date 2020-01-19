@@ -3,9 +3,9 @@
 use std::fs;
 use std::io::{self, BufRead, Write};
 
-use super::error::*;
-use super::timeout;
-use super::unix;
+use crate::error::*;
+use crate::timeout;
+use crate::unix;
 
 pub struct Connection {
     input: io::BufReader<timeout::SafeFile>,
@@ -129,8 +129,8 @@ impl Connection {
 
 #[cfg(test)]
 mod tests {
-    use super::super::timeout;
-    use super::super::unix;
+    use crate::timeout;
+    use crate::unix;
     use super::*;
     use std::fs;
     use std::io;

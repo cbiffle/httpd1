@@ -1,8 +1,8 @@
 //! HTTP request support.
 
-use super::ascii::AsciiPrefix;
-use super::con::Connection; // interesting, wildcard doesn't work for this.
-use super::error::*;
+use crate::ascii::AsciiPrefix;
+use crate::con::Connection; // interesting, wildcard doesn't work for this.
+use crate::error::*;
 
 /// Accepts a request from the given `Connection` and returns its contents, or
 /// an error.

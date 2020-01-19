@@ -4,11 +4,11 @@ use std::ffi;
 use std::os::unix::ffi::OsStrExt;
 use std::time::SystemTime;
 
-use super::con::Connection;
-use super::error::*;
-use super::request::{Method, Protocol, Request};
-use super::response::ContentEncoding;
-use super::{file, filetype, path, percent, request, response};
+use crate::con::Connection;
+use crate::error::*;
+use crate::request::{Method, Protocol, Request};
+use crate::response::ContentEncoding;
+use crate::{file, filetype, path, percent, request, response};
 
 pub fn serve(remote: String) -> Result<()> {
     let mut c = Connection::new(remote);

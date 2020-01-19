@@ -1,6 +1,6 @@
 //! URL percent-encoding.
 
-use super::error::{HttpError, Result};
+use crate::error::{HttpError, Result};
 
 /// Decodes URL percent-escaping, in-place.  Fails if the encoding is bad.
 pub fn unescape(path: &mut Vec<u8>) -> Result<()> {

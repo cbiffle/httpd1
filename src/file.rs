@@ -5,7 +5,7 @@ use std::os::unix::fs::MetadataExt;
 use std::path;
 use std::time::SystemTime;
 
-use super::error;
+use crate::error;
 
 /// Opens a file for read, but returns it only if its permissions and mode match
 /// some seriously pedantic checks.  Otherwise, the file is immediately closed.
