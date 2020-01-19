@@ -1,5 +1,5 @@
 fn main() {
-    gcc::Config::new()
+    cc::Build::new()
         .file("c-src/timeout.c")
         .compile("libtimeout.a")
 }
