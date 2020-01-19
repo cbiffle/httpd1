@@ -66,9 +66,9 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
     );
 
     let now = SystemTime::now();
-    let content_type = filetype::from_path(&file_path[..]);
+    let content_type = filetype::from_path(&file_path);
     if let file::FileOrDir::File(mut resource) =
-        open_resource(con, &file_path[..], None)?
+        open_resource(con, &file_path, None)?
     {
         let mut encoding = None;
 
@@ -99,7 +99,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
             now,
             encoding,
             req.if_modified_since.as_ref().map(Vec::as_slice),
-            &content_type[..],
+            &content_type,
             resource,
         )
     } else {

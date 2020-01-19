@@ -1,5 +1,6 @@
 //! Guessing the MIME type of files in inexpensive ways.
 
+use std::borrow::Cow;
 use std::env;
 use std::ffi::OsString;
 
@@ -20,17 +21,15 @@ use std::os::unix::ffi::OsStringExt;
 /// returned.  We could technically use static byte slices, since the contents
 /// of environment variables are in RAM with static duration on Unix, but Rust
 /// doesn't present them that way -- probably some Windows thing.
-pub fn from_path(file_path: &[u8]) -> Vec<u8> {
-    match file_path.rsplitn(2, |b| *b == b'.').next() {
-        Some(ext) => env_mapping(ext).unwrap_or_else(|| canned_mapping(ext)),
-
-        // TODO: a path without an extension should perhaps not be served as
-        // text/plain?
-        _ => b"text/plain".to_vec(),
-    }
+pub fn from_path(file_path: &[u8]) -> Cow<'static, [u8]> {
+    file_path
+        .rsplitn(2, |b| *b == b'.')
+        .next()
+        .map(|ext| env_mapping(ext).unwrap_or_else(|| canned_mapping(ext)))
+        .unwrap_or_else(|| Cow::from(b"text/plain" as &[u8]))
 }
 
-fn canned_mapping(ext: &[u8]) -> Vec<u8> {
+fn canned_mapping(ext: &[u8]) -> Cow<'static, [u8]> {
     let mimetype: &[u8] = match ext {
         b"html" => b"text/html",
         b"gif" => b"image/gif",
@@ -40,12 +39,13 @@ fn canned_mapping(ext: &[u8]) -> Vec<u8> {
         b"css" => b"text/css",
         _ => b"text/plain",
     };
-    mimetype.to_vec()
+    mimetype.into()
 }
 
-fn env_mapping(ext: &[u8]) -> Option<Vec<u8>> {
+fn env_mapping(ext: &[u8]) -> Option<Cow<'static, [u8]>> {
     let key = b"CT_".iter().chain(ext).cloned().collect::<Vec<_>>();
-    env::var_os(OsString::from_vec(key)).map(|s| s.into_vec())
+    let s = env::var_os(OsString::from_vec(key))?;
+    Some(s.into_vec().into())
 }
 
 #[cfg(test)]
