@@ -30,25 +30,14 @@ fn cvt<T: Default + PartialOrd>(t: T) -> io::Result<T> {
     }
 }
 
-/// Bring in some features not exposed in Rust's libc crate.
-mod ffi {
-    extern "C" {
-        pub fn chroot(path: *const ::libc::c_char) -> ::libc::c_int;
-        pub fn setgroups(
-            size: ::libc::size_t,
-            list: *const ::libc::gid_t,
-        ) -> ::libc::c_int;
-    }
-}
-
 pub fn chroot(path: &[u8]) -> io::Result<()> {
-    cvt(unsafe { ffi::chroot(path.as_ptr() as *const libc::c_char) })
+    cvt(unsafe { libc::chroot(path.as_ptr() as *const libc::c_char) })
         .map(|_| ())
 }
 
 pub fn setgroups(groups: &[libc::gid_t]) -> io::Result<()> {
     cvt(unsafe {
-        ffi::setgroups(groups.len() as libc::size_t, groups.as_ptr())
+        libc::setgroups(groups.len() as libc::size_t, groups.as_ptr())
     })
     .map(|_| ())
 }
