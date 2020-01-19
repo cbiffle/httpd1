@@ -77,7 +77,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
         if req.accept_gzip {
             file_path.extend(b".gz".iter().cloned());
             if let Ok(file::FileOrDir::File(alt)) =
-                open_resource(con, &file_path[..], Some(b"gzipped"))
+                open_resource(con, &file_path, Some(b"gzipped"))
             {
                 // It must be at least as recent as the primary, or we'll assume it's
                 // stale clutter and ignore it.
@@ -117,7 +117,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
                 con,
                 req.protocol,
                 req.method == Method::Get,
-                &url[..],
+                &url,
             );
         } else {
             Err(HttpError::NotFound(b"cannot redirect"))
