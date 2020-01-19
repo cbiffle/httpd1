@@ -5,60 +5,6 @@ use std::io;
 
 use std::os::unix::io::AsRawFd;
 
-mod ffi {
-    use libc::{c_int, time_t};
-
-    pub fn wait_for_data(fd: c_int, seconds: time_t) -> nix::Result<()> {
-        use nix::sys::select::{select, FdSet};
-        use nix::sys::time::TimeVal;
-
-        let mut tv = TimeVal::from(libc::timeval {
-            tv_sec: seconds,
-            tv_usec: 0,
-        });
-
-        let mut fds = FdSet::new();
-        fds.insert(fd);
-
-        select(
-            fd + 1,
-            Some(&mut fds),
-            None,
-            None,
-            Some(&mut tv),
-        )?;
-        if !fds.contains(fd) {
-            return Err(nix::errno::Errno::ETIMEDOUT.into());
-        }
-        Ok(())
-    }
-
-    pub fn wait_for_writeable(fd: c_int, seconds: time_t) -> nix::Result<()> {
-        use nix::sys::select::{select, FdSet};
-        use nix::sys::time::TimeVal;
-
-        let mut tv = TimeVal::from(libc::timeval {
-            tv_sec: seconds,
-            tv_usec: 0,
-        });
-
-        let mut fds = FdSet::new();
-        fds.insert(fd);
-
-        select(
-            fd + 1,
-            None,
-            Some(&mut fds),
-            None,
-            Some(&mut tv),
-        )?;
-        if !fds.contains(fd) {
-            return Err(nix::errno::Errno::ETIMEDOUT.into());
-        }
-        Ok(())
-    }
-}
-
 fn cvt_err(e: nix::Error) -> io::Error {
     io::Error::new(
         io::ErrorKind::Other,
@@ -84,8 +30,29 @@ trait WriteTimeout {
 
 impl ReadTimeout for fs::File {
     fn wait_for_data(&mut self, seconds: u32) -> io::Result<()> {
-        ffi::wait_for_data(self.as_raw_fd(), seconds as time_t)
-            .map_err(cvt_err)
+        use nix::sys::select::{select, FdSet};
+        use nix::sys::time::TimeVal;
+
+        let mut tv = TimeVal::from(libc::timeval {
+            tv_sec: seconds as time_t,
+            tv_usec: 0,
+        });
+
+        let fd = self.as_raw_fd();
+        let mut fds = FdSet::new();
+        fds.insert(fd);
+
+        select(
+            fd + 1,
+            Some(&mut fds),
+            None,
+            None,
+            Some(&mut tv),
+        ).map_err(cvt_err)?;
+        if !fds.contains(fd) {
+            return Err(nix::errno::Errno::ETIMEDOUT.into());
+        }
+        Ok(())
     }
 }
 
@@ -100,8 +67,29 @@ where
 
 impl WriteTimeout for fs::File {
     fn wait_for_writeable(&mut self, seconds: u32) -> io::Result<()> {
-        ffi::wait_for_writeable(self.as_raw_fd(), seconds as time_t)
-            .map_err(cvt_err)
+        use nix::sys::select::{select, FdSet};
+        use nix::sys::time::TimeVal;
+
+        let mut tv = TimeVal::from(libc::timeval {
+            tv_sec: seconds as time_t,
+            tv_usec: 0,
+        });
+
+        let fd = self.as_raw_fd();
+        let mut fds = FdSet::new();
+        fds.insert(fd);
+
+        select(
+            fd + 1,
+            None,
+            Some(&mut fds),
+            None,
+            Some(&mut tv),
+        ).map_err(cvt_err)?;
+        if !fds.contains(fd) {
+            return Err(nix::errno::Errno::ETIMEDOUT.into());
+        }
+        Ok(())
     }
 }
 
