@@ -1,5 +1,6 @@
 //! The core HTTP server, which ties the other modules together.
 
+use std::borrow::Cow;
 use std::ffi;
 use std::os::unix::ffi::OsStrExt;
 use std::time::SystemTime;
@@ -39,20 +40,17 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
     // The request may not have included a Host, but we need to use it to
     // generate a file path.  Tolerate Host's absence for HTTP/1.0 requests
     // by replacing it with the simulated host "0".
-    let host = match req.host {
-        None => match req.protocol {
-            Protocol::Http10 => vec![b'0'],
-
-            // HTTP 1.1 requests must include a host, one way or another.
-            Protocol::Http11 => return Err(HttpError::BadRequest),
-        },
-        Some(ref h) => {
+    let host = match (&req.host, req.protocol) {
+        (Some(h), _) => {
             // TODO: we're copying this to preserve the bytes sent by the client
             // again.
             let mut h = h.clone();
             normalize_host(&mut h);
-            h
+            Cow::from(h)
         }
+        (None, Protocol::Http10) => Cow::from(b"0" as &[u8]),
+        // HTTP 1.1 requests must include a host, one way or another.
+        _ => return Err(HttpError::BadRequest),
     };
 
     // TODO: doing the percent escaping in-place is seeming less snazzy now that
@@ -62,7 +60,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
 
     // TODO: probably better to percent-escape into this buffer.
     let mut file_path = path::sanitize(
-        b"./".iter().chain(&host).chain(b"/").chain(&path).cloned(),
+        b"./".iter().chain(&*host).chain(b"/").chain(&path).cloned(),
     );
 
     let now = SystemTime::now();
