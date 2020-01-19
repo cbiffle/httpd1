@@ -6,12 +6,50 @@ use std::io;
 use std::os::unix::io::AsRawFd;
 
 mod ffi {
+    use std::mem::MaybeUninit;
+    use std::ptr::null_mut;
     use libc::{c_int, time_t};
 
-    extern "C" {
-        pub fn wait_for_data(fd: c_int, seconds: time_t) -> c_int;
+    pub unsafe fn wait_for_data(fd: c_int, seconds: time_t) -> c_int {
+        let mut tv = libc::timeval {
+            tv_sec: seconds,
+            tv_usec: 0,
+        };
 
-        pub fn wait_for_writeable(fd: c_int, seconds: time_t) -> c_int;
+        let mut fds = MaybeUninit::uninit();
+        libc::FD_ZERO(fds.as_mut_ptr());
+        let fds = fds.as_mut_ptr();
+        libc::FD_SET(fd, fds);
+
+        if libc::select(fd + 1, fds, null_mut(), null_mut(), &mut tv) == -1 {
+            return -1;
+        }
+        if !libc::FD_ISSET(fd, fds) {
+            return -1;
+        }
+
+        0
+    }
+
+    pub unsafe fn wait_for_writeable(fd: c_int, seconds: time_t) -> c_int {
+        let mut tv = libc::timeval {
+            tv_sec: seconds,
+            tv_usec: 0,
+        };
+
+        let mut fds = MaybeUninit::uninit();
+        libc::FD_ZERO(fds.as_mut_ptr());
+        let fds = fds.as_mut_ptr();
+        libc::FD_SET(fd, fds);
+
+        if libc::select(fd + 1, null_mut(), fds, null_mut(), &mut tv) == -1 {
+            return -1;
+        }
+        if !libc::FD_ISSET(fd, fds) {
+            return -1;
+        }
+
+        0
     }
 }
 
