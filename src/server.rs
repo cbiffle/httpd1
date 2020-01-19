@@ -52,9 +52,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
     normalize_host(host, &mut file_path);
     file_path.push(b'/');
     percent::unescape(&req.path, &mut file_path)?;
-
-    // TODO: this is still allocating unnecessarily
-    let mut file_path = path::sanitize(file_path);
+    path::sanitize(&mut file_path);
 
     let now = SystemTime::now();
     let content_type = filetype::from_path(&file_path);

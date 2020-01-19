@@ -3,27 +3,32 @@
 /// Sanitizes a path received from a client: replaces NULs, collapses duplicate
 /// slashes, and replaces initial dots.  This is partially paranoia and
 /// partially about log tidiness.
-pub fn sanitize(path: impl IntoIterator<Item = u8>) -> Vec<u8> {
-    let iter = path.into_iter();
-    let mut result = Vec::with_capacity(iter.size_hint().0);
+pub fn sanitize(path: &mut Vec<u8>) {
+    let mut last = None;
+    filter_map_in_place(path, |&c| {
+        let r = match c {
+            0 => Some(b'_'),
+            b'/' if last == Some(b'/') => None,
+            b'.' if last == Some(b'/') => Some(b':'),
+            _ => Some(c),
+        };
+        last = Some(c);
+        r
+    });
+}
 
-    for c in iter {
-        match c {
-            0 => result.push(b'_'),
-            b'/' => {
-                if result.last() != Some(&b'/') {
-                    result.push(c)
-                }
-            }
-            b'.' => result.push(if result.last() == Some(&b'/') {
-                b':'
-            } else {
-                c
-            }),
-            _ => result.push(c),
+fn filter_map_in_place<T>(
+    vec: &mut Vec<T>,
+    mut f: impl FnMut(&T) -> Option<T>,
+) {
+    let mut used = 0;
+    for i in 0..vec.len() {
+        if let Some(repl) = f(&vec[i]) {
+            vec[used] = repl;
+            used += 1;
         }
     }
-    result
+    vec.truncate(used);
 }
 
 #[cfg(test)]
@@ -32,7 +37,11 @@ mod tests {
 
     macro_rules! sanitize_case {
         ($input: expr, $output: expr) => {
-            assert_eq!($output, &sanitize($input.iter().cloned())[..])
+            {
+                let mut fixture = $input.to_vec();
+                sanitize(&mut fixture);
+                assert_eq!(&fixture[..], $output);
+            }
         };
     }
 
