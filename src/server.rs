@@ -7,9 +7,10 @@ use std::time::SystemTime;
 
 use crate::con::Connection;
 use crate::error::*;
+use crate::file::{self, FileOrDir};
 use crate::request::{Method, Protocol, Request};
 use crate::response::ContentEncoding;
-use crate::{file, filetype, path, percent, request, response};
+use crate::{filetype, path, percent, request, response};
 
 pub fn serve(remote: String) -> Result<()> {
     let mut c = Connection::new(remote);
@@ -65,8 +66,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
 
     let now = SystemTime::now();
     let content_type = filetype::from_path(&file_path);
-    if let file::FileOrDir::File(mut resource) =
-        open_resource(con, &file_path, None)?
+    if let FileOrDir::File(mut resource) = open_resource(con, &file_path, None)?
     {
         let mut encoding = None;
 
@@ -74,7 +74,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
         // permissions.
         if req.accept_gzip {
             file_path.extend(b".gz".iter().cloned());
-            if let Ok(file::FileOrDir::File(alt)) =
+            if let Ok(FileOrDir::File(alt)) =
                 open_resource(con, &file_path, Some(b"gzipped"))
             {
                 // It must be at least as recent as the primary, or we'll assume it's
@@ -127,15 +127,15 @@ fn open_resource(
     con: &mut Connection,
     path: &[u8],
     context: Option<&'static [u8]>,
-) -> Result<file::FileOrDir> {
+) -> Result<FileOrDir> {
     let result = file::safe_open(ffi::OsStr::from_bytes(path));
 
     match result {
-        Ok(file::FileOrDir::File(_)) => {
+        Ok(FileOrDir::File(_)) => {
             con.log(path, context, b"success");
         }
 
-        Ok(file::FileOrDir::Dir) => {
+        Ok(FileOrDir::Dir) => {
             con.log(path, context, b"directory redirect");
         }
 
