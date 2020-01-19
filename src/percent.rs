@@ -6,9 +6,9 @@ use super::error::{HttpError, Result};
 pub fn unescape(path: &mut Vec<u8>) -> Result<()> {
     fn fromhex(b: u8) -> Option<u8> {
         match b {
-            b'0'...b'9' => Some(b - b'0'),
-            b'A'...b'F' => Some(b - b'A' + 10),
-            b'a'...b'f' => Some(b - b'a' + 10),
+            b'0'..=b'9' => Some(b - b'0'),
+            b'A'..=b'F' => Some(b - b'A' + 10),
+            b'a'..=b'f' => Some(b - b'a' + 10),
             _ => None,
         }
     }
