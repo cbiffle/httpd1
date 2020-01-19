@@ -73,7 +73,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
         // If that worked, see if there's *also* a GZIPped alternate with accessible
         // permissions.
         if req.accept_gzip {
-            file_path.extend(b".gz".iter().cloned());
+            file_path.extend_from_slice(b".gz");
             if let Ok(FileOrDir::File(alt)) =
                 open_resource(con, &file_path, Some(b"gzipped"))
             {
