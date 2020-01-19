@@ -1,8 +1,8 @@
 //! The core HTTP server, which ties the other modules together.
 
 use std::ffi;
-
 use std::os::unix::ffi::OsStrExt;
+use std::time::SystemTime;
 
 use super::con::Connection;
 use super::error::*;
@@ -65,7 +65,7 @@ fn serve_request(con: &mut Connection, req: Request) -> Result<()> {
         b"./".iter().chain(&host).chain(b"/").chain(&path).cloned(),
     );
 
-    let now = time::get_time();
+    let now = SystemTime::now();
     let content_type = filetype::from_path(&file_path[..]);
     if let file::FileOrDir::File(mut resource) =
         open_resource(con, &file_path[..], None)?

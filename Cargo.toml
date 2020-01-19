@@ -8,5 +8,5 @@ edition = "2018"
 cc = "1.0"
 
 [dependencies]
-time = "0.1"
+httpdate = "0.3"
 libc = "0.2"

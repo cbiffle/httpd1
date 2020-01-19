@@ -2,9 +2,10 @@
 
 use std::fs;
 use std::path;
+use std::time::SystemTime;
+use std::os::unix::fs::MetadataExt;
 
 use super::error;
-use super::unix;
 
 /// Opens a file for read, but returns it only if its permissions and mode match
 /// some seriously pedantic checks.  Otherwise, the file is immediately closed.
@@ -18,22 +19,19 @@ where
     P: AsRef<path::Path>,
 {
     let f = fs::File::open(path)?;
-    let s = unix::fstat(&f)?;
+    let meta = f.metadata()?;
 
-    if (s.st_mode & 0o444) != 0o444 {
+    if (meta.mode() & 0o444) != 0o444 {
         Err(error::HttpError::NotFound(b"not ugo+r"))
-    } else if (s.st_mode & 0o101) == 0o001 {
+    } else if (meta.mode() & 0o101) == 0o001 {
         Err(error::HttpError::NotFound(b"o+x but u-x"))
-    } else if (s.st_mode & libc::S_IFMT) == libc::S_IFDIR {
+    } else if (meta.mode() & libc::S_IFMT) == libc::S_IFDIR {
         Ok(FileOrDir::Dir)
-    } else if (s.st_mode & libc::S_IFMT) == libc::S_IFREG {
+    } else if (meta.mode() & libc::S_IFMT) == libc::S_IFREG {
         Ok(FileOrDir::File(OpenFile {
             file: f,
-            mtime: time::Timespec {
-                sec: s.st_mtime,
-                nsec: 0,
-            },
-            length: s.st_size as u64,
+            mtime: meta.modified()?,
+            length: meta.len(),
         }))
     } else {
         Err(error::HttpError::NotFound(b"not a regular file"))
@@ -53,7 +51,7 @@ pub struct OpenFile {
     pub file: fs::File,
     /// The file's modification time in seconds since the epoch, at the last time
     /// we checked.
-    pub mtime: time::Timespec,
+    pub mtime: SystemTime,
     /// The file's length, at the last time we checked.  Note that this may change
     /// at runtime; take care.
     pub length: u64,

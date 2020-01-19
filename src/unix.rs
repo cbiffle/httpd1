@@ -2,9 +2,7 @@
 
 use std::fs;
 use std::io;
-use std::mem;
 
-use std::os::unix::io::AsRawFd;
 use std::os::unix::io::FromRawFd;
 
 pub fn stdin() -> fs::File {
@@ -53,12 +51,6 @@ pub fn setgroups(groups: &[libc::gid_t]) -> io::Result<()> {
         ffi::setgroups(groups.len() as libc::size_t, groups.as_ptr())
     })
     .map(|_| ())
-}
-
-pub fn fstat(f: &fs::File) -> io::Result<libc::stat> {
-    let fd = f.as_raw_fd();
-    let mut s = unsafe { mem::zeroed() };
-    cvt(unsafe { libc::fstat(fd, &mut s) }).map(|_| s)
 }
 
 pub fn setuid(uid: libc::uid_t) -> io::Result<()> {

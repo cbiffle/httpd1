@@ -2,6 +2,7 @@
 
 use std::io;
 use std::io::BufRead;
+use std::time::SystemTime;
 
 use super::con::Connection;
 use super::error::{HttpError, Result};
@@ -16,13 +17,13 @@ pub fn send(
     con: &mut Connection,
     method: Method,
     protocol: Protocol,
-    now: time::Timespec,
+    now: SystemTime,
     encoding: Option<ContentEncoding>,
     if_modified_since: Option<Vec<u8>>,
     content_type: &[u8],
     resource: OpenFile,
 ) -> Result<()> {
-    let mtime = format!("{}", time::at_utc(resource.mtime).rfc822());
+    let mtime = httpdate::fmt_http_date(resource.mtime);
 
     let unmodified = if let Some(ref ims) = if_modified_since {
         &ims[..] == mtime.as_bytes()
@@ -77,11 +78,10 @@ pub fn barf(
         Some(pair) => pair,
     };
 
-    let now = time::get_time();
     start_response(
         &mut con,
         protocol.unwrap_or(Protocol::Http10),
-        now,
+        SystemTime::now(),
         code,
         message,
     )?;
@@ -113,7 +113,7 @@ pub fn redirect(
 ) -> Result<()> {
     let body = b"<html><body>moved permanently</body></html>";
 
-    let now = time::get_time();
+    let now = SystemTime::now();
     start_response(con, protocol, now, b"301", b"moved permanently")?;
     con.write(b"Content-Length: ")?;
     con.write_decimal(body.len())?;
@@ -201,11 +201,11 @@ fn send_chunked(
 fn start_response(
     con: &mut Connection,
     prot: Protocol,
-    now: time::Timespec,
+    now: SystemTime,
     code: &[u8],
     msg: &[u8],
 ) -> Result<()> {
-    let now = format!("{}", time::at_utc(now).rfc822());
+    let now = httpdate::fmt_http_date(now);
 
     con.write(match prot {
         Protocol::Http10 => b"HTTP/1.0 ",
