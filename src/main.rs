@@ -34,6 +34,7 @@ pub fn main() {
     });
     with_env_var("GID", |gid| {
         let gid = nix::unistd::Gid::from_raw(gid);
+        #[cfg(not(any(target_os = "ios", target_os = "macos")))]
         nix::unistd::setgroups(&[gid])?;
         nix::unistd::setgid(gid)
     });

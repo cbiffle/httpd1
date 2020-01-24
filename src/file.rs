@@ -25,9 +25,9 @@ where
         Err(error::HttpError::NotFound(b"not ugo+r"))
     } else if (meta.mode() & 0o101) == 0o001 {
         Err(error::HttpError::NotFound(b"o+x but u-x"))
-    } else if (meta.mode() & libc::S_IFMT) == libc::S_IFDIR {
+    } else if meta.is_dir() {
         Ok(FileOrDir::Dir)
-    } else if (meta.mode() & libc::S_IFMT) == libc::S_IFREG {
+    } else if meta.is_file() {
         Ok(FileOrDir::File(OpenFile {
             file: f,
             mtime: meta.modified()?,
